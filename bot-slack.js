@@ -22,6 +22,7 @@ var bot = controller.spawn({
 });
 
 controller.hears(['.*'], ['direct_message', 'direct_mention', 'mention'], function(bot, message) {
+  console.log("Este es el mensaje que recibe slack para enviar",message);
   if (message.watsonError) {
     console.log(message.watsonError);
     bot.reply(message, message.watsonError.description || message.watsonError.error);

@@ -23,6 +23,7 @@ var controller = Botkit.facebookbot({
 
 var bot = controller.spawn();
 controller.hears('(.*)', 'message_received', function(bot, message) {
+  
   if (message.watsonError) {
     console.log(message.watsonError);
     bot.reply(message, message.watsonError.description || message.watsonError.error);

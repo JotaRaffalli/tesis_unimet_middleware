@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+const fetch = require("node-fetch");
 require('dotenv').load();
 
 /* var middleware = require('botkit-middleware-watson')({
@@ -29,21 +30,21 @@ var _context = {};
 
 const watsonApiUrl = 'https://openwhisk.ng.bluemix.net/api/v1/web/diazdaniel%40correo.unimet.edu.ve_Tesis-DevSpace/assistant-with-discovery-openwhisk/assistant-with-discovery-sequence.json'
 
-const openWhiskSequence = function (bot, message, next ) {
+const openWhiskSequence = function(bot, message, next) {
+  console.log("Mensaje Recibido con exito: ", message);
 
-      console.log('Mensaje Recibido con exito: ', message);
+  message.logged = true;
 
-      message.logged = true;
-
-      if (message.text && message.type != 'self_message') {
-        fetchSequence(message.text).then(function(responseJson) {
-            next();
-        });
-    } else {
-        next();
-    }
-
-}
+  if (message.text && message.type != "self_message") {
+    fetchSequence(message.text).then(function(responseJson) {
+      console.log("ESTE ES RESPONSE.JSON: ", responseJson);
+      message.watsonData = responseJson;
+      next();
+    });
+  } else {
+    next();
+  }
+};
 
 const fetchSequence = function (incomingText) {
 
@@ -102,11 +103,11 @@ module.exports = function(app) {
     console.log('Twilio bot is live');
   }
   // Customize your Watson Middleware object's before and after callbacks.
-  middleware.before = function(message, conversationPayload, callback) {
+  openWhiskSequence.before = function(message, conversationPayload, callback) {
     callback(null, conversationPayload);
   }
 
-  middleware.after = function(message, conversationResponse, callback) {
+  openWhiskSequence.after = function(message, conversationResponse, callback) {
     callback(null, conversationResponse);
   }
 };
