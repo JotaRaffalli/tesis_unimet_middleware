@@ -71,10 +71,13 @@ const openWhiskSequence = function(bot, message, next) {
         message.watsonData = responseJson;
         // Verifica propiedad action de la respuesta
         if ( responseJson.output.hasOwnProperty("action") && responseJson.output.action.name == "buscarCertificados" || true) {
-          console.log("ENTROOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO");
-          let carrera = await lectura(refEstudiantes);
-            console.log("CARRERAAAAAAAAAAAAAAAAAAAAAAAAAAAA: ",carrera)
-            message.watsonData.context.certificadosDeCarrera = carrera;
+
+         // let carrera = await lectura(refEstudiantes);
+         refEstudiantes.on("value", function(snapshot) {
+          message.watsonData.context.certificadosDeCarrera = snapshot.val();
+          console.log("SNAPSHOOOOOOOOOOOOOOOOOOOOOT ", message.watsonData.context.certificadosDeCarrera);
+        }); 
+            
         } else if (
           responseJson.output.hasOwnProperty("action") &&
           responseJson.output.action.hasOwnProperty("")
