@@ -27,28 +27,17 @@ admin.initializeApp({
 
 // Referencias a Firebase
 var db = admin.database();
-var refAsignaturas = db.ref("/asignatura");
-var refDepartamentos = db.ref("/departamentos");
-var refDocumentos = db.ref("/documentos");
-var refEscuelas = db.ref("/escuelas");
-var refEstudiantes = db.ref("/estudiantes");
-var refRecordatorios = db.ref("/recordatorios");
-var refSecciones = db.ref("/secciones");
+var refAsignaturas = db.ref("asignatura");
+var refDepartamentos = db.ref("departamentos");
+var refDocumentos = db.ref("documentos");
+var refEscuelas = db.ref("escuelas");
+var refEstudiantes = db.ref("estudiantes");
+var refRecordatorios = db.ref("recordatorios");
+var refSecciones = db.ref("secciones");
+var refCarreras = db.ref("carreras");
 
 
 // Funciones
-
-/**
- * Acceso de escritura y lectura a una referencia de la BD
- * @param {url} referencia 
- */
-const lectura =  async function (referencia) {
-  let result = referencia.on("value", function(snapshot) {
-  return (snapshot.val());
-}); 
-console.log("ENTRO A LECTURA Y ESTE ES EL RESULTADO:  ",result)
-return result;
-}
 
 /**
  * Se conecta a la secuencia y le envía el mensaje que recibió
@@ -57,30 +46,59 @@ return result;
  * @param {object} next 
  */
 const openWhiskSequence = function(bot, message, next) {
+
+  console.log("********** PRIMERA FASE **********")
   console.log("Mensaje Recibido de slack con exito: ", message);
 
   message.logged = true;
   if (!message.user) {
-    console.log("es de watson");
+    console.log("Mensaje entrante sin usuario, next() y se continua...");
     next();
   } else {
     if (message.text && message.type != "self_message") {
-      fetchSequence(message.text).then( async function(responseJson) {
-        console.log("******Esta es la respuesta: ", responseJson);
+      fetchSequence(message.text).then(  function(responseJson) {
+        console.log("********** SEGUNDA FASE **********");
+        console.log("Esta es la respuesta: ",responseJson);
 
         message.watsonData = responseJson;
         // Verifica propiedad action de la respuesta
-        if ( responseJson.output.hasOwnProperty("action") && responseJson.output.action.name == "buscarCertificados" || true) {
+        console.log("Esto es lo que tiene action: ",responseJson.output.action);
+        if ( responseJson.output.hasOwnProperty("action") && responseJson.output.action[0].name == "buscarCertificados" ) 
+        {
+          console.log("-----------------------------Entro en if ------------------------------ ");
 
-         // let carrera = await lectura(refEstudiantes);
-         refEstudiantes.on("value", function(snapshot) {
-          message.watsonData.context.certificadosDeCarrera = snapshot.val();
-          console.log("SNAPSHOOOOOOOOOOOOOOOOOOOOOT ", message.watsonData.context.certificadosDeCarrera);
-        }); 
+          let carnet = responseJson.output.action[0].parameters.carnet;
+          console.log("ESTE ES EL CARNET:",carnet);
+          let certificadosArray = [];
+
+          refEstudiantes.orderByChild("carnet").equalTo(carnet).on("child_added", function(snapshot) {
+            console.log("RESULTADO PRIMER QUERY", snapshot.val());
+            let carrera = snapshot.val().carrera;
+            refCarreras.orderByChild("nombre").equalTo(carrera).on("child_added", function(snapshot2) {
+              console.log("RESULTADO SEGUNDO QUERY", snapshot2.val());
+              let certfJSON = snapshot2.val().certificados;
+              let keys = Object.keys(certfJSON);
+              for (var i; i<keys.length; i++)
+              {
+                let k = keys[i];
+                let nombreCert = certfJSON[k].nombre;
+                certificadosArray.push(nombreCert);
+              }
+
+              console.log("ARRAY DE CERTIFICADOS", certificadosArray);
+
+            }, function(error2) {
+              // The callback failed.
+              console.error("ERROR Q2 : ",error2);
+            });
+          }, function(error1) {
+            // The callback failed.
+            console.error("ERROR Q1 : ",error1);
+          });
+          message.watsonData.context.certificadosDeCarrera = certificadosArray;
+          message.watsonData.output.action = null;
             
-        } else if (
-          responseJson.output.hasOwnProperty("action") &&
-          responseJson.output.action.hasOwnProperty("")
+        } else if (responseJson.output.hasOwnProperty("action") &&  responseJson.output.action.hasOwnProperty("")
         ) {
         }
 
