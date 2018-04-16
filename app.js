@@ -70,18 +70,20 @@ const openWhiskSequence = function(bot, message, next) {
           let carnet = responseJson.output.action[0].parameters.carnet;
           console.log("ESTE ES EL CARNET:",carnet);
           let certificadosArray = [];
-
-          refEstudiantes.orderByChild("carnet").equalTo(carnet).on("child_added", function(snapshot) {
+//.orderByChild('carnet').equalTo(carnet)
+          let dbref = refEstudiantes.child(carnet); 
+          dbref.on("value", function(snapshot) {
             console.log("RESULTADO PRIMER QUERY", snapshot.val());
             let carrera = snapshot.val().carrera;
-            refCarreras.orderByChild("nombre").equalTo(carrera).on("child_added", function(snapshot2) {
-              console.log("RESULTADO SEGUNDO QUERY", snapshot2.val());
+            refCarreras.child(carrera).on("value", function(snapshot2) {
+              console.log("RESULTADO SEGUNDO QUERY", snapshot2.val().certificados);
               let certfJSON = snapshot2.val().certificados;
               let keys = Object.keys(certfJSON);
-              for (var i; i<keys.length; i++)
+              for (var i=0; i<keys.length; i++)
               {
                 let k = keys[i];
                 let nombreCert = certfJSON[k].nombre;
+                console.log(nombreCert)
                 certificadosArray.push(nombreCert);
               }
 
@@ -91,18 +93,22 @@ const openWhiskSequence = function(bot, message, next) {
               // The callback failed.
               console.error("ERROR Q2 : ",error2);
             });
+            message.watsonData.context.certificadosDeCarrera = certificadosArray;
+            message.watsonData.output.action = null;
+            next();
+
           }, function(error1) {
             // The callback failed.
             console.error("ERROR Q1 : ",error1);
           });
-          message.watsonData.context.certificadosDeCarrera = certificadosArray;
-          message.watsonData.output.action = null;
+          
             
         } else if (responseJson.output.hasOwnProperty("action") &&  responseJson.output.action.hasOwnProperty("")
         ) {
+        } else {
+          next();
         }
 
-        next();
       });
     } else {
       next();
