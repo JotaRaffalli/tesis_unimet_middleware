@@ -48,7 +48,7 @@ var refCarreras = db.ref("carreras");
 const openWhiskSequence = function(bot, message, next) {
 
   console.log("********** PRIMERA FASE **********")
-  console.log("Mensaje Recibido de slack con exito: ", message);
+  console.log("Mensaje Recibido de canal con éxito: ", message);
 
   message.logged = true;
   if (!message.user) {
@@ -58,21 +58,23 @@ const openWhiskSequence = function(bot, message, next) {
     if (message.text && message.type != "self_message") {
       fetchSequence(message.text).then(  function(responseJson) {
         console.log("********** SEGUNDA FASE **********");
+        console.log("Se le envía a watson...");
         console.log("Esta es la respuesta: ",responseJson);
 
         message.watsonData = responseJson;
         // Verifica propiedad action de la respuesta
-        console.log("Esto es lo que tiene action: ",responseJson.output.action);
+        console.log("Esto es lo que tiene la propiedad action: ",responseJson.output.action);
         if ( responseJson.output.hasOwnProperty("action") && responseJson.output.action[0].name == "buscarCertificados" ) 
         {
-          console.log("-----------------------------Entro en if ------------------------------ ");
+          console.log("-----------------------------Action type: buscarCertificados------------------------------ ");
 
-          let carnet = responseJson.output.action[0].parameters.carnet;
+          let carnet = Number(responseJson.output.action[0].parameters.carnet);
           console.log("ESTE ES EL CARNET:",carnet);
           let certificadosArray = [];
 
           refEstudiantes.orderByChild('carnet').equalTo(carnet).on("value", function(snapshot) {
             let carrera = snapshot.child(carnet).val().carrera;
+            message.watsonData.context.carrera = carrera;
             refCarreras.orderByChild('nombre').equalTo(carrera).on("value", function(snapshot2) {
               let certfJSON = snapshot2.child(carrera).val().certificados;
               let keys = Object.keys(certfJSON);
@@ -85,31 +87,77 @@ const openWhiskSequence = function(bot, message, next) {
 
               message.watsonData.context.certificadosDeCarrera = certificadosArray;
               message.watsonData.output.action = null;
-              console.log("WATSOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOON", message.watsonData)
+              console.log("Nuevo mensaje enrriquecido, propiedad watsonData: ", message.watsonData)
+              programmaticResponse(message.watsonData).then((respuesta) => {
+                console.log("------------------- Se actualiza a watson con mensaje enrriquecido -----------------");
+                console.log("Esta es la respuesta de watson despues de haberla enrriquecido: ", respuesta);
+                message.watsonData = respuesta;
+                bot.reply(message, message.watsonData.output.text.join('\n'));
+              });
               next();
             }, function(error2) {
               // The callback failed.
               console.error("ERROR Q2 : ",error2);
             });
-            
           }, function(error1) {
             // The callback failed.
             console.error("ERROR Q1 : ",error1);
           });
           
             
-        } else if (responseJson.output.hasOwnProperty("action") &&  responseJson.output.action.hasOwnProperty("")
-        ) {
-        } else {
+        } else if (responseJson.output.hasOwnProperty("action") &&  responseJson.output.action.hasOwnProperty(""))
+        {
+
+        } else 
+        {
           next();
         }
 
       });
-    } else {
+    } else 
+    {
       next();
     }
   }
 };
+
+/**
+ * Fetch con respuesta del programmatic call
+ * @param {json} payload 
+ */
+const programmaticResponse = function (payload) {
+  payload.context.skip_user_input = true;
+  const requestJson = JSON.stringify(payload);
+  console.log("Respuesta de PM a enviar: ", payload);
+
+  return fetch(watsonApiUrl,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: requestJson
+    }
+  ).then((response) => {
+    if(!response.ok) {
+      throw response;
+    }
+    return(response.json());
+  })
+    .then((responseJson) => {
+
+      _context = responseJson.context;
+
+      return(responseJson)
+
+    }).catch(function(error) {
+      throw error;
+    });
+
+}
+
+
 
 /**
  * Fetch al end-point de la secuencia
