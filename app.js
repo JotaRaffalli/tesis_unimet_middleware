@@ -51,6 +51,8 @@ const openWhiskSequence = function(bot, message, next) {
   console.log("Mensaje Recibido de canal con éxito: ", message);
 
   message.logged = true;
+ 
+
   if (!message.user) {
     console.log("Mensaje entrante sin usuario, next() y se continua...");
     next();
@@ -62,6 +64,7 @@ const openWhiskSequence = function(bot, message, next) {
         console.log("Esta es la respuesta: ",responseJson);
 
         message.watsonData = responseJson;
+        message.watsonData.context.timezone = "America/Caracas"
         // Verifica propiedad action de la respuesta
         console.log("Esto es lo que tiene la propiedad action: ",responseJson.output.action);
         if ( responseJson.output.hasOwnProperty("action") && responseJson.output.action[0].name == "buscarCertificados" ) 
@@ -165,11 +168,12 @@ const programmaticResponse = function (payload) {
  */
 const fetchSequence = function (incomingText) {
 
+  _context.timezone = "America/Caracas"
   const requestJson = JSON.stringify({
     input: {
       text: incomingText
     },
-    context: _context
+    context: _context, 
   });
 
   return fetch(watsonApiUrl,
