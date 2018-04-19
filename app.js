@@ -60,7 +60,7 @@ const openWhiskSequence = function(bot, message, next) {
     if (message.text && message.type != "self_message") {
       fetchSequence(message.text).then(  function(responseJson) {
         console.log("********** SEGUNDA FASE **********");
-        console.log("Se le envía a watson...");
+        console.log("Se le envía a watson el mensaje...");
         console.log("Esta es la respuesta: ",responseJson);
 
         message.watsonData = responseJson;
@@ -70,13 +70,17 @@ const openWhiskSequence = function(bot, message, next) {
         if ( responseJson.output.hasOwnProperty("action") && responseJson.output.action[0].name == "buscarCertificados" ) 
         {
           console.log("-----------------------------Action type: buscarCertificados------------------------------ ");
-
           let carnet = Number(responseJson.output.action[0].parameters.carnet);
-          console.log("ESTE ES EL CARNET:",carnet);
           let certificadosArray = [];
+          let userFullName = [];
+
+          console.log("ESTE ES EL CARNET:",carnet);
 
           refEstudiantes.orderByChild('carnet').equalTo(carnet).on("value", function(snapshot) {
             let carrera = snapshot.child(carnet).val().carrera;
+            userFullName = snapshot.child(carnet).val().nombre.split(' ') || null;
+            let username = userFullName[0];
+            message.watsonData.context.username = username || null;
             message.watsonData.context.carrera = carrera;
             refCarreras.orderByChild('nombre').equalTo(carrera).on("value", function(snapshot2) {
               let certfJSON = snapshot2.child(carrera).val().certificados;
@@ -90,6 +94,7 @@ const openWhiskSequence = function(bot, message, next) {
 
               message.watsonData.context.certificadosDeCarrera = certificadosArray;
               message.watsonData.output.action = null;
+              certificadosArray = [];
               console.log("Nuevo mensaje enrriquecido, propiedad watsonData: ", message.watsonData)
               programmaticResponse(message.watsonData).then((respuesta) => {
                 console.log("------------------- Se actualiza a watson con mensaje enrriquecido -----------------");
@@ -129,10 +134,7 @@ const openWhiskSequence = function(bot, message, next) {
  * @param {json} payload 
  */
 const programmaticResponse = function (payload) {
-  payload.context.skip_user_input = true;
   const requestJson = JSON.stringify(payload);
-  console.log("Respuesta de PM a enviar: ", payload);
-
   return fetch(watsonApiUrl,
     {
       method: 'POST',
