@@ -1,23 +1,21 @@
 // Dependencias
 const fetch = require("node-fetch");
-var admin = require('firebase-admin');
+const admin = require('firebase-admin');
+const Botkit = require("botkit");
 require('dotenv').load();
 
-import Botkit from 'Botkit';
 
-var controller = Botkit.socketbot({
-  debug: true,
-  log: true,
-  hostname: 'localhost',
-});
+
 
 // se configura servidor express que tendrá el web sockets
-require(__dirname + '/components/express_webserver.js')(controller);
+// -------------------------------- FALLE --------------------------------
+//require(__dirname + '/components/express_webserver.js')(controller);
 
 
 //controller.middleware.receive.use(openWhiskSequence);
 controller.on('message_received', function(bot, message) {
   bot.reply(message, 'Sorry, I`m not prepared to respond to that message.');
+  console.log("Escuchó solicitud del web socket: ", message)
   return false;
 });
 
@@ -45,6 +43,7 @@ admin.initializeApp({
 // Referencias a Firebase
 var db = admin.database();
 var refAsignaturas = db.ref("asignatura");
+var refProfesores = db.ref("profesores");
 var refDepartamentos = db.ref("departamentos");
 var refDocumentos = db.ref("documentos");
 var refEscuelas = db.ref("escuelas");
@@ -123,14 +122,22 @@ const openWhiskSequence = function(bot, message, next) {
             }, function(error2) {
               // The callback failed.
               console.error("ERROR Q2 : ",error2);
+              message.watsonData.context.callbackError = "No se contro carrera del estudiante en referencia de carreras.";
               programmaticResponse(message.watsonData).then((respuesta) => {
-                
+                if (message.watsonData.output.text != "")
                 bot.reply(message, message.watsonData.output.text.join('\n'));
+                next();
               });
             });
           }, function(error1) {
             // The callback failed.
             console.error("ERROR Q1 : ",error1);
+            message.watsonData.context.callbackError = "Vaya! Al parecer no hay ningún estudiante con ese carnet, por favor intentelo de nuevo más tarde.";
+              programmaticResponse(message.watsonData).then((respuesta) => {
+                if (message.watsonData.output.text != "")
+                bot.reply(message, message.watsonData.output.text.join('\n'));
+                next();
+              });
           });
           
             
