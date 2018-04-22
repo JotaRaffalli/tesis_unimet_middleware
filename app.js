@@ -3,9 +3,26 @@ const fetch = require("node-fetch");
 var admin = require('firebase-admin');
 require('dotenv').load();
 
+import Botkit from 'Botkit';
+
+var controller = Botkit.socketbot({
+  debug: true,
+  log: true,
+  hostname: 'localhost',
+});
+
+// se configura servidor express que tendrá el web sockets
+require(__dirname + '/components/express_webserver.js')(controller);
+
+
+//controller.middleware.receive.use(openWhiskSequence);
+controller.on('message_received', function(bot, message) {
+  bot.reply(message, 'Sorry, I`m not prepared to respond to that message.');
+  return false;
+});
+
 // Variables
 var _context = {};
-//var serviceAccount = require('serviceAccountKey.json');
 const watsonApiUrl = 'https://openwhisk.ng.bluemix.net/api/v1/web/diazdaniel%40correo.unimet.edu.ve_Tesis-DevSpace/assistant-with-discovery-openwhisk/assistant-with-discovery-sequence.json'
 
 // Inicialización
@@ -106,6 +123,10 @@ const openWhiskSequence = function(bot, message, next) {
             }, function(error2) {
               // The callback failed.
               console.error("ERROR Q2 : ",error2);
+              programmaticResponse(message.watsonData).then((respuesta) => {
+                
+                bot.reply(message, message.watsonData.output.text.join('\n'));
+              });
             });
           }, function(error1) {
             // The callback failed.
@@ -113,8 +134,25 @@ const openWhiskSequence = function(bot, message, next) {
           });
           
             
-        } else if (responseJson.output.hasOwnProperty("action") &&  responseJson.output.action.hasOwnProperty(""))
+        } else if (responseJson.output.hasOwnProperty("action") &&  responseJson.output.action[0].name == "buscarSalon")
         {
+          console.log("-----------------------------Action type: buscarSalon------------------------------ ");
+          
+          let carnet = Number(responseJson.output.action[0].parameters.carnet);
+          console.log("ESTE ES EL CARNET:",carnet);
+
+          refProfesores.orderByChild('carnet').equalTo(carnet).on("value", function(snapshot) {
+
+          }, function(error1) {
+              // The callback failed.
+              console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ",error1);
+            });
+          refEstudiantes.orderByChild('carnet').equalTo(carnet).on("value", function(snapshot) {
+
+          }, function(error2) {
+            // The callback failed.
+            console.error("ERROR Q1 NO SE ENCONTRO ESTUDIANTE : ",error2);
+          });
 
         } else 
         {
