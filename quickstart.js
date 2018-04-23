@@ -65,7 +65,7 @@ function getAccessToken(oAuth2Client, callback) {
 
 
 var event = {
-    'summary': 'aaaaaaaaaaaaaaa',
+    'summary': 'bbbbbbbbbbbb',
     'location': '800 Howard St., San Francisco, CA 94103',
     'description': 'A chance to hear more about Google\'s developer products.',
     'start': {

@@ -64,7 +64,6 @@ const openWhiskSequence = function(bot, message, next) {
         console.log("Esta es la respuesta: ",responseJson);
 
         message.watsonData = responseJson;
-        message.watsonData.context.timezone = "America/Caracas"
         // Verifica propiedad action de la respuesta
         console.log("Esto es lo que tiene la propiedad action: ",responseJson.output.action);
         if ( responseJson.output.hasOwnProperty("action") && responseJson.output.action[0].name == "buscarCertificados" ) 
