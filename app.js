@@ -1,7 +1,7 @@
 // Dependencias
 const fetch = require("node-fetch");
 const admin = require('firebase-admin');
-const Botkit = require("botkit");
+
 require('dotenv').load();
 
 
@@ -10,18 +10,14 @@ require('dotenv').load();
 // se configura servidor express que tendrá el web sockets
 // -------------------------------- FALLE --------------------------------
 //require(__dirname + '/components/express_webserver.js')(controller);
-
-
 //controller.middleware.receive.use(openWhiskSequence);
-controller.on('message_received', function(bot, message) {
-  bot.reply(message, 'Sorry, I`m not prepared to respond to that message.');
-  console.log("Escuchó solicitud del web socket: ", message)
-  return false;
-});
+
 
 // Variables
 var _context = {};
 const watsonApiUrl = 'https://openwhisk.ng.bluemix.net/api/v1/web/diazdaniel%40correo.unimet.edu.ve_Tesis-DevSpace/assistant-with-discovery-openwhisk/assistant-with-discovery-sequence.json'
+
+
 
 // Inicialización
 admin.initializeApp({
@@ -251,7 +247,7 @@ const fetchSequence = function (incomingText) {
 }
 
 // ---------------- Main App ----------------
-module.exports = function(app) {
+module.exports = function(app, controller) {
   if (process.env.USE_SLACK) {
     var Slack = require('./bot-slack');
     Slack.controller.middleware.receive.use(openWhiskSequence);
@@ -270,6 +266,9 @@ module.exports = function(app) {
     Twilio.controller.createWebhookEndpoints(app, Twilio.bot);
     console.log('Twilio bot is live');
   }
+
+  controller.middleware.receive.use(openWhiskSequence);
+
   // Personaliza acciones antes y después de las respuetsas de la llamada.
   openWhiskSequence.before = function(message, conversationPayload, callback) {
     callback(null, conversationPayload);
