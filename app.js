@@ -1,11 +1,26 @@
 // Dependencias
 const fetch = require("node-fetch");
-var admin = require('firebase-admin');
+const admin = require('firebase-admin');
+const Botkit = require("botkit");
 require('dotenv').load();
+
+
+
+
+// se configura servidor express que tendrá el web sockets
+// -------------------------------- FALLE --------------------------------
+//require(__dirname + '/components/express_webserver.js')(controller);
+
+
+//controller.middleware.receive.use(openWhiskSequence);
+controller.on('message_received', function(bot, message) {
+  bot.reply(message, 'Sorry, I`m not prepared to respond to that message.');
+  console.log("Escuchó solicitud del web socket: ", message)
+  return false;
+});
 
 // Variables
 var _context = {};
-//var serviceAccount = require('serviceAccountKey.json');
 const watsonApiUrl = 'https://openwhisk.ng.bluemix.net/api/v1/web/diazdaniel%40correo.unimet.edu.ve_Tesis-DevSpace/assistant-with-discovery-openwhisk/assistant-with-discovery-sequence.json'
 
 // Inicialización
@@ -28,6 +43,7 @@ admin.initializeApp({
 // Referencias a Firebase
 var db = admin.database();
 var refAsignaturas = db.ref("asignatura");
+var refProfesores = db.ref("profesores");
 var refDepartamentos = db.ref("departamentos");
 var refDocumentos = db.ref("documentos");
 var refEscuelas = db.ref("escuelas");
@@ -60,7 +76,7 @@ const openWhiskSequence = function(bot, message, next) {
     if (message.text && message.type != "self_message") {
       fetchSequence(message.text).then(  function(responseJson) {
         console.log("********** SEGUNDA FASE **********");
-        console.log("Se le envía a watson...");
+        console.log("Se le envía a watson el mensaje...");
         console.log("Esta es la respuesta: ",responseJson);
 
         message.watsonData = responseJson;
@@ -69,13 +85,17 @@ const openWhiskSequence = function(bot, message, next) {
         if ( responseJson.output.hasOwnProperty("action") && responseJson.output.action[0].name == "buscarCertificados" ) 
         {
           console.log("-----------------------------Action type: buscarCertificados------------------------------ ");
-
           let carnet = Number(responseJson.output.action[0].parameters.carnet);
-          console.log("ESTE ES EL CARNET:",carnet);
           let certificadosArray = [];
+          let userFullName = [];
+
+          console.log("ESTE ES EL CARNET:",carnet);
 
           refEstudiantes.orderByChild('carnet').equalTo(carnet).on("value", function(snapshot) {
             let carrera = snapshot.child(carnet).val().carrera;
+            userFullName = snapshot.child(carnet).val().nombre.split(' ') || null;
+            let username = userFullName[0];
+            message.watsonData.context.username = username || null;
             message.watsonData.context.carrera = carrera;
             refCarreras.orderByChild('nombre').equalTo(carrera).on("value", function(snapshot2) {
               let certfJSON = snapshot2.child(carrera).val().certificados;
@@ -89,6 +109,7 @@ const openWhiskSequence = function(bot, message, next) {
 
               message.watsonData.context.certificadosDeCarrera = certificadosArray;
               message.watsonData.output.action = null;
+              certificadosArray = [];
               console.log("Nuevo mensaje enrriquecido, propiedad watsonData: ", message.watsonData)
               programmaticResponse(message.watsonData).then((respuesta) => {
                 console.log("------------------- Se actualiza a watson con mensaje enrriquecido -----------------");
@@ -100,15 +121,44 @@ const openWhiskSequence = function(bot, message, next) {
             }, function(error2) {
               // The callback failed.
               console.error("ERROR Q2 : ",error2);
+              message.watsonData.context.callbackError = "No se contro carrera del estudiante en referencia de carreras.";
+              programmaticResponse(message.watsonData).then((respuesta) => {
+                if (message.watsonData.output.text != "")
+                bot.reply(message, message.watsonData.output.text.join('\n'));
+                next();
+              });
             });
           }, function(error1) {
             // The callback failed.
             console.error("ERROR Q1 : ",error1);
+            message.watsonData.context.callbackError = "Vaya! Al parecer no hay ningún estudiante con ese carnet, por favor intentelo de nuevo más tarde.";
+              programmaticResponse(message.watsonData).then((respuesta) => {
+                if (message.watsonData.output.text != "")
+                bot.reply(message, message.watsonData.output.text.join('\n'));
+                next();
+              });
           });
           
             
-        } else if (responseJson.output.hasOwnProperty("action") &&  responseJson.output.action.hasOwnProperty(""))
+        } else if (responseJson.output.hasOwnProperty("action") &&  responseJson.output.action[0].name == "buscarSalon")
         {
+          console.log("-----------------------------Action type: buscarSalon------------------------------ ");
+          
+          let carnet = Number(responseJson.output.action[0].parameters.carnet);
+          console.log("ESTE ES EL CARNET:",carnet);
+
+          refProfesores.orderByChild('carnet').equalTo(carnet).on("value", function(snapshot) {
+
+          }, function(error1) {
+              // The callback failed.
+              console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ",error1);
+            });
+          refEstudiantes.orderByChild('carnet').equalTo(carnet).on("value", function(snapshot) {
+
+          }, function(error2) {
+            // The callback failed.
+            console.error("ERROR Q1 NO SE ENCONTRO ESTUDIANTE : ",error2);
+          });
 
         } else 
         {
@@ -128,10 +178,7 @@ const openWhiskSequence = function(bot, message, next) {
  * @param {json} payload 
  */
 const programmaticResponse = function (payload) {
-  payload.context.skip_user_input = true;
   const requestJson = JSON.stringify(payload);
-  console.log("Respuesta de PM a enviar: ", payload);
-
   return fetch(watsonApiUrl,
     {
       method: 'POST',
