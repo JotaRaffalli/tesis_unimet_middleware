@@ -19,9 +19,10 @@ require('dotenv').load();
 var express = require('express');
 var bodyParser = require('body-parser');
 var verify = require('./security');
+var http = require('http');
 var webserver  = express();
 const Botkit = require("botkit");
-var controller = Botkit.core({});
+var controller = Botkit.socketbot({});
   webserver.use(
     bodyParser.json({
       verify: verify
@@ -30,17 +31,24 @@ var controller = Botkit.core({});
 
   var port = process.env.PORT || 5000;
   webserver.set("port", port);
+  
+  var server = http.createServer(webserver);
 
-  controller.webserver  = webserver;
-
-  require('./routes/normal_webhook')(webserver, controller);
 
   // Listen on the specified port
-  webserver.listen(port, function() {
+  server.listen(port, function() {
     console.log("Client server listening on port " + port);
   });
 
-  require('./app')(webserver, controller);
+  controller.webserver  = webserver;
+  controller.httpserver = server;
+
+  require('./routes/normal_webhook')(webserver, controller);
+
+  var main = require('./app').main;
+  main(webserver, controller);
+
+  
 
 
   

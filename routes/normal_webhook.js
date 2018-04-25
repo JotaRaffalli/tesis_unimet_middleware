@@ -1,3 +1,4 @@
+var openWhiskSequence = require('./../app.js').openWhiskSequence;
 module.exports = function(webserver, controller) {
 
     webserver.post('/botkit/receive', function(req, res) {
@@ -7,9 +8,11 @@ module.exports = function(webserver, controller) {
         res.send('exito');
 
         var bot = controller.spawn({});
-
-        controller.handleWebhookPayload(req, res, bot);
-
+        
+        console.log("ESTE ES EL CONTROLLLLLLLLLLLLLLLER",controller)
+        controller.handleWebhookPayload(req, res, bot);       
+        
+        //controller.on('message_received',  bot.reply(message, 'I experienced an error with a request to Botkit Studio: ' + err)); 
 
     });
 

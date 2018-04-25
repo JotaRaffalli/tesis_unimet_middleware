@@ -247,7 +247,7 @@ const fetchSequence = function (incomingText) {
 }
 
 // ---------------- Main App ----------------
-module.exports = function(app, controller) {
+module.exports.main = function(app, controller) {
   if (process.env.USE_SLACK) {
     var Slack = require('./bot-slack');
     Slack.controller.middleware.receive.use(openWhiskSequence);
@@ -267,7 +267,11 @@ module.exports = function(app, controller) {
     console.log('Twilio bot is live');
   }
 
+  controller.openSocketServer(controller.httpserver);
+  controller.startTicking();
   controller.middleware.receive.use(openWhiskSequence);
+  
+ /*  controller.createWebhookEndpoints(app, Twilio.bot);  */
 
   // Personaliza acciones antes y después de las respuetsas de la llamada.
   openWhiskSequence.before = function(message, conversationPayload, callback) {
@@ -278,3 +282,5 @@ module.exports = function(app, controller) {
     callback(null, conversationResponse);
   }
 };
+
+exports.openWhiskSequence = openWhiskSequence;

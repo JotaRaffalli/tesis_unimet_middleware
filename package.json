@@ -8,18 +8,18 @@
   },
   "license": "Apache-2.0",
   "dependencies": {
-    "wordfilter": "^0.2.6",
-    "engine.io": "^3.1.0",
     "body-parser": "^1.15.2",
-    "botkit": "^0.2.2",
+    "botkit": "^0.6.13",
     "botkit-middleware-watson": "^1.6.1",
     "dotenv": "^2.0.0",
+    "engine.io": "^3.1.0",
     "express": "^4.13.4",
     "firebase": "^4.12.1",
-    "googleapis": "^27.0.0",
     "firebase-admin": "^5.12.0",
+    "googleapis": "^27.0.0",
     "node-fetch": "^2.1.2",
-    "nodemailer": "^4.6.4"
+    "nodemailer": "^4.6.4",
+    "wordfilter": "^0.2.6"
   },
   "devDependencies": {
     "babel-cli": "^6.24.1",
