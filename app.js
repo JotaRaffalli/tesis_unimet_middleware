@@ -11,14 +11,6 @@ require('dotenv').load();
 // -------------------------------- FALLE --------------------------------
 //require(__dirname + '/components/express_webserver.js')(controller);
 
-
-//controller.middleware.receive.use(openWhiskSequence);
-controller.on('message_received', function(bot, message) {
-  bot.reply(message, 'Sorry, I`m not prepared to respond to that message.');
-  console.log("Escuchó solicitud del web socket: ", message)
-  return false;
-});
-
 // Variables
 var _context = {};
 const watsonApiUrl = 'https://openwhisk.ng.bluemix.net/api/v1/web/diazdaniel%40correo.unimet.edu.ve_Tesis-DevSpace/assistant-with-discovery-openwhisk/assistant-with-discovery-sequence.json'
@@ -62,113 +54,194 @@ var refCarreras = db.ref("carreras");
  * @param {object} next 
  */
 const openWhiskSequence = function(bot, message, next) {
-
-  console.log("********** PRIMERA FASE **********")
+  console.log("********** PRIMERA FASE **********");
   console.log("Mensaje Recibido de canal con éxito: ", message);
 
   message.logged = true;
- 
 
   if (!message.user) {
     console.log("Mensaje entrante sin usuario, next() y se continua...");
     next();
   } else {
     if (message.text && message.type != "self_message") {
-      fetchSequence(message.text).then(  function(responseJson) {
+      fetchSequence(message.text).then(function(responseJson) {
         console.log("********** SEGUNDA FASE **********");
         console.log("Se le envía a watson el mensaje...");
-        console.log("Esta es la respuesta: ",responseJson);
+        console.log("Esta es la respuesta: ", responseJson);
 
         message.watsonData = responseJson;
-        message.watsonData.context.timezone = "America/Caracas"
+        message.watsonData.context.timezone = "America/Caracas";
         // Verifica propiedad action de la respuesta
-        console.log("Esto es lo que tiene la propiedad action: ",responseJson.output.action);
-        if ( responseJson.output.hasOwnProperty("action") && responseJson.output.action[0].name == "buscarCertificados" ) 
-        {
-          console.log("-----------------------------Action type: buscarCertificados------------------------------ ");
+        console.log(
+          "Esto es lo que tiene la propiedad action: ",
+          responseJson.output.action
+        );
+        if (
+          responseJson.output.hasOwnProperty("action") &&
+          responseJson.output.action[0].name == "buscarCertificados"
+        ) {
+          console.log(
+            "-----------------------------Action type: buscarCertificados------------------------------ "
+          );
           let carnet = Number(responseJson.output.action[0].parameters.carnet);
           let certificadosArray = [];
           let userFullName = [];
 
-          console.log("ESTE ES EL CARNET:",carnet);
+          console.log("ESTE ES EL CARNET:", carnet);
 
-          refEstudiantes.orderByChild('carnet').equalTo(carnet).on("value", function(snapshot) {
-            let carrera = snapshot.child(carnet).val().carrera;
-            userFullName = snapshot.child(carnet).val().nombre.split(' ') || null;
-            let username = userFullName[0];
-            message.watsonData.context.username = username || null;
-            message.watsonData.context.carrera = carrera;
-            refCarreras.orderByChild('nombre').equalTo(carrera).on("value", function(snapshot2) {
-              let certfJSON = snapshot2.child(carrera).val().certificados;
-              let keys = Object.keys(certfJSON);
-              for (var i=0; i<keys.length; i++)
-              {
-                let k = keys[i];
-                let nombreCert = certfJSON[k].nombre;
-                certificadosArray.push(nombreCert);
+          refEstudiantes
+            .orderByChild("carnet")
+            .equalTo(carnet)
+            .on(
+              "value",
+              function(snapshot) {
+                if (snapshot.val() !== null) {
+                  //user exists, do something
+                  let carrera = snapshot.child(carnet).val().carrera;
+                  userFullName =
+                    snapshot
+                      .child(carnet)
+                      .val()
+                      .nombre.split(" ") || null;
+                  let username = userFullName[0];
+                  message.watsonData.context.username = username || null;
+                  message.watsonData.context.carrera = carrera;
+                  refCarreras
+                    .orderByChild("nombre")
+                    .equalTo(carrera)
+                    .on(
+                      "value",
+                      function(snapshot2) {
+                        if (snapshot.val() !== null) {
+                          let certfJSON = snapshot2.child(carrera).val()
+                            .certificados;
+                          let keys = Object.keys(certfJSON);
+                          for (var i = 0; i < keys.length; i++) {
+                            let k = keys[i];
+                            let nombreCert = certfJSON[k].nombre;
+                            certificadosArray.push(nombreCert);
+                          }
+
+                          message.watsonData.context.certificadosDeCarrera = certificadosArray;
+                          message.watsonData.output.action = null;
+                          certificadosArray = [];
+                          console.log(
+                            "Nuevo mensaje enrriquecido, propiedad watsonData: ",
+                            message.watsonData
+                          );
+                          programmaticResponse(message.watsonData).then(
+                            respuesta => {
+                              console.log(
+                                "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
+                              );
+                              console.log(
+                                "Esta es la respuesta de watson despues de haberla enrriquecido: ",
+                                respuesta
+                              );
+                              message.watsonData = respuesta;
+                              bot.reply(
+                                message,
+                                message.watsonData.output.text.join("\n")
+                              );
+                            }
+                          );
+                          next();
+                        } else {
+                          message.watsonData.context.callbackError =
+                            "No se contro carrera del estudiante en referencia de carreras.";
+                          programmaticResponse(message.watsonData).then(
+                            respuesta => {
+                              if (message.watsonData.output.text != "")
+                                bot.reply(
+                                  message,
+                                  message.watsonData.output.text.join("\n")
+                                );
+                              next();
+                            }
+                          );
+                        }
+                      },
+                      function(error2) {
+                        // The callback failed.
+                        console.error("ERROR Q2 : ", error2);
+                        message.watsonData.context.callbackError = error2;
+                        programmaticResponse(message.watsonData).then(
+                          respuesta => {
+                            if (message.watsonData.output.text != "")
+                              bot.reply(
+                                message,
+                                message.watsonData.output.text.join("\n")
+                              );
+                            next();
+                          }
+                        );
+                      }
+                    );
+                } else {
+                  message.watsonData.context.callbackError =
+                    "Vaya! Al parecer no hay ningún estudiante con ese carnet, por favor intentelo de nuevo más tarde.";
+                  programmaticResponse(message.watsonData).then(respuesta => {
+                    if (message.watsonData.output.text != "")
+                      bot.reply(
+                        message,
+                        message.watsonData.output.text.join("\n")
+                      );
+                    next();
+                  });
+                }
+              },
+              function(error1) {
+                // The callback failed.
+                console.error("ERROR Q1 : ", error1);
+                message.watsonData.context.callbackError = error1;
+                programmaticResponse(message.watsonData).then(respuesta => {
+                  if (message.watsonData.output.text != "")
+                    bot.reply(
+                      message,
+                      message.watsonData.output.text.join("\n")
+                    );
+                  next();
+                });
               }
+            );
+        } else if (
+          responseJson.output.hasOwnProperty("action") &&
+          responseJson.output.action[0].name == "buscarSalon"
+        ) {
+          console.log(
+            "-----------------------------Action type: buscarSalon------------------------------ "
+          );
 
-              message.watsonData.context.certificadosDeCarrera = certificadosArray;
-              message.watsonData.output.action = null;
-              certificadosArray = [];
-              console.log("Nuevo mensaje enrriquecido, propiedad watsonData: ", message.watsonData)
-              programmaticResponse(message.watsonData).then((respuesta) => {
-                console.log("------------------- Se actualiza a watson con mensaje enrriquecido -----------------");
-                console.log("Esta es la respuesta de watson despues de haberla enrriquecido: ", respuesta);
-                message.watsonData = respuesta;
-                bot.reply(message, message.watsonData.output.text.join('\n'));
-              });
-              next();
-            }, function(error2) {
-              // The callback failed.
-              console.error("ERROR Q2 : ",error2);
-              message.watsonData.context.callbackError = "No se contro carrera del estudiante en referencia de carreras.";
-              programmaticResponse(message.watsonData).then((respuesta) => {
-                if (message.watsonData.output.text != "")
-                bot.reply(message, message.watsonData.output.text.join('\n'));
-                next();
-              });
-            });
-          }, function(error1) {
-            // The callback failed.
-            console.error("ERROR Q1 : ",error1);
-            message.watsonData.context.callbackError = "Vaya! Al parecer no hay ningún estudiante con ese carnet, por favor intentelo de nuevo más tarde.";
-              programmaticResponse(message.watsonData).then((respuesta) => {
-                if (message.watsonData.output.text != "")
-                bot.reply(message, message.watsonData.output.text.join('\n'));
-                next();
-              });
-          });
-          
-            
-        } else if (responseJson.output.hasOwnProperty("action") &&  responseJson.output.action[0].name == "buscarSalon")
-        {
-          console.log("-----------------------------Action type: buscarSalon------------------------------ ");
-          
           let carnet = Number(responseJson.output.action[0].parameters.carnet);
-          console.log("ESTE ES EL CARNET:",carnet);
+          console.log("ESTE ES EL CARNET:", carnet);
 
-          refProfesores.orderByChild('carnet').equalTo(carnet).on("value", function(snapshot) {
-
-          }, function(error1) {
-              // The callback failed.
-              console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ",error1);
-            });
-          refEstudiantes.orderByChild('carnet').equalTo(carnet).on("value", function(snapshot) {
-
-          }, function(error2) {
-            // The callback failed.
-            console.error("ERROR Q1 NO SE ENCONTRO ESTUDIANTE : ",error2);
-          });
-
-        } else 
-        {
+          refProfesores
+            .orderByChild("carnet")
+            .equalTo(carnet)
+            .on(
+              "value",
+              function(snapshot) {},
+              function(error1) {
+                // The callback failed.
+                console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ", error1);
+              }
+            );
+          refEstudiantes
+            .orderByChild("carnet")
+            .equalTo(carnet)
+            .on(
+              "value",
+              function(snapshot) {},
+              function(error2) {
+                // The callback failed.
+                console.error("ERROR Q1 NO SE ENCONTRO ESTUDIANTE : ", error2);
+              }
+            );
+        } else {
           next();
         }
-
       });
-    } else 
-    {
+    } else {
       next();
     }
   }
