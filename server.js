@@ -31,14 +31,14 @@ var controller = Botkit.core({});
   var port = process.env.PORT || 5000;
   webserver.set("port", port);
 
+  controller.webserver  = webserver;
+
+  require('./routes/normal_webhook')(webserver, controller);
+
   // Listen on the specified port
   webserver.listen(port, function() {
     console.log("Client server listening on port " + port);
   });
-
-  controller.webserver  = webserver;
-
-  require('./routes/normal_webhook')(webserver, controller)
 
   require('./app')(webserver, controller);
 
