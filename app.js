@@ -149,36 +149,25 @@ const openWhiskSequence = function(bot, message, next) {
                         } else {
                           message.watsonData.context.callbackError =
                             "No se contro carrera del estudiante en referencia de carreras.";
-                          programmaticResponse(message.watsonData).then(
-                            respuesta => {
-                              if (message.watsonData.output.text != "")
-                                bot.reply(
-                                  message,
-                                  message.watsonData.output.text.join("\n")
-                                );
+                            programmaticResponse(message.watsonData).then(respuesta => {
+                              console.log("RESPUESTAAAAAAAAAAAAAA", respuesta)
+                              message.watsonData=respuesta
                               next();
-                            }
-                          );
+                            });
                         }
                       },
                       function(error2) {
                         // The callback failed.
                         console.error("ERROR Q2 : ", error2);
                         message.watsonData.context.callbackError = error2;
-                        programmaticResponse(message.watsonData).then(
-                          respuesta => {
-                            if (message.watsonData.output.text != "")
-                              bot.reply(
-                                message,
-                                message.watsonData.output.text.join("\n")
-                              );
-                            next();
-                          }
-                        );
+                        programmaticResponse(message.watsonData).then(respuesta => {
+                          console.log("RESPUESTAAAAAAAAAAAAAA", respuesta)
+                          message.watsonData=respuesta
+                          next();
+                        });
                       }
                     );
                 } else {
-                  console.log("No hay carnet")
                   message.watsonData.context.callbackError =
                     "Vaya! Al parecer no hay ningún estudiante con ese carnet, por favor intentelo de nuevo más tarde.";
                   programmaticResponse(message.watsonData).then(respuesta => {
@@ -198,11 +187,8 @@ const openWhiskSequence = function(bot, message, next) {
                 console.error("ERROR Q1 : ", error1);
                 message.watsonData.context.callbackError = error1;
                 programmaticResponse(message.watsonData).then(respuesta => {
-                  if (message.watsonData.output.text != "")
-                    bot.reply(
-                      message,
-                      message.watsonData.output.text.join("\n")
-                    );
+                  console.log("RESPUESTAAAAAAAAAAAAAA", respuesta)
+                  message.watsonData=respuesta
                   next();
                 });
               }
