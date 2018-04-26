@@ -92,14 +92,11 @@ const openWhiskSequence = function(bot, message, next) {
           refEstudiantes
             .orderByChild("carnet")
             .equalTo(carnet)
-            .on(
-              "value",
-              function(snapshot) {
+            .on("value", function(snapshot) {
                 if (snapshot.val() !== null) {
                   //user exists, do something
                   let carrera = snapshot.child(carnet).val().carrera;
-                  userFullName =
-                    snapshot
+                  userFullName = snapshot
                       .child(carnet)
                       .val()
                       .nombre.split(" ") || null;
@@ -109,12 +106,11 @@ const openWhiskSequence = function(bot, message, next) {
                   refCarreras
                     .orderByChild("nombre")
                     .equalTo(carrera)
-                    .on(
-                      "value",
-                      function(snapshot2) {
+                    .on("value", function(snapshot2) {
                         if (snapshot.val() !== null) {
-                          let certfJSON = snapshot2.child(carrera).val()
-                            .certificados;
+                          let certfJSON = snapshot2
+                            .child(carrera)
+                            .val().certificados;
                           let keys = Object.keys(certfJSON);
                           for (var i = 0; i < keys.length; i++) {
                             let k = keys[i];
@@ -125,10 +121,7 @@ const openWhiskSequence = function(bot, message, next) {
                           message.watsonData.context.certificadosDeCarrera = certificadosArray;
                           message.watsonData.output.action = null;
                           certificadosArray = [];
-                          console.log(
-                            "Nuevo mensaje enrriquecido, propiedad watsonData: ",
-                            message.watsonData
-                          );
+                          console.log("Nuevo mensaje enrriquecido, propiedad watsonData: ", message.watsonData);
                           programmaticResponse(message.watsonData).then(
                             respuesta => {
                               console.log(
@@ -141,7 +134,9 @@ const openWhiskSequence = function(bot, message, next) {
                               message.watsonData = respuesta;
                               bot.reply(
                                 message,
-                                message.watsonData.output.text.join("\n")
+                                message.watsonData.output.text.join(
+                                  "\n"
+                                )
                               );
                             }
                           );
@@ -150,18 +145,15 @@ const openWhiskSequence = function(bot, message, next) {
                           message.watsonData.context.callbackError =
                             "No se contro carrera del estudiante en referencia de carreras.";
                             programmaticResponse(message.watsonData).then(respuesta => {
-                              console.log("RESPUESTAAAAAAAAAAAAAA", respuesta)
                               message.watsonData=respuesta
                               next();
                             });
                         }
-                      },
-                      function(error2) {
+                      }, function(error2) {
                         // The callback failed.
                         console.error("ERROR Q2 : ", error2);
                         message.watsonData.context.callbackError = error2;
                         programmaticResponse(message.watsonData).then(respuesta => {
-                          console.log("RESPUESTAAAAAAAAAAAAAA", respuesta)
                           message.watsonData=respuesta
                           next();
                         });
@@ -171,7 +163,6 @@ const openWhiskSequence = function(bot, message, next) {
                   message.watsonData.context.callbackError =
                     "Vaya! Al parecer no hay ningún estudiante con ese carnet, por favor intentelo de nuevo más tarde.";
                   programmaticResponse(message.watsonData).then(respuesta => {
-                    console.log("RESPUESTAAAAAAAAAAAAAA", respuesta)
                     message.watsonData=respuesta/*
                     if (respuesta.output.text != "")
                       bot.reply(
@@ -181,13 +172,11 @@ const openWhiskSequence = function(bot, message, next) {
                     next();
                   });
                 }
-              },
-              function(error1) {
+              }, function(error1) {
                 // The callback failed.
                 console.error("ERROR Q1 : ", error1);
                 message.watsonData.context.callbackError = error1;
                 programmaticResponse(message.watsonData).then(respuesta => {
-                  console.log("RESPUESTAAAAAAAAAAAAAA", respuesta)
                   message.watsonData=respuesta
                   next();
                 });
@@ -200,7 +189,9 @@ const openWhiskSequence = function(bot, message, next) {
           console.log(
             "-----------------------------Action type: buscarSalon------------------------------ "
           );
-
+          let userFullName = []
+          let salones = []
+          let _asignatura = responseJson.output.action[0].parameters.asignatura
           let carnet = Number(responseJson.output.action[0].parameters.carnet);
           console.log("ESTE ES EL CARNET:", carnet);
 
@@ -209,7 +200,60 @@ const openWhiskSequence = function(bot, message, next) {
             .equalTo(carnet)
             .on(
               "value",
-              function(snapshot) {},
+              function(snapshot) {
+                if (snapshot.val() !== null) {
+                  message.watsonData.context.isProfessor = true;
+                  userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
+                  let username = userFullName[0];
+                  message.watsonData.context.username = username || null;
+                  let seccionesJSON = snapshot.val().child(carnet).val().secciones;
+                          let keys = Object.keys(seccionesJSON);
+                          for (var i = 0; i < keys.length; i++) 
+                          {
+                            let k = keys[i];
+                            if (seccionesJSON[k].asignatura == _asignatura) 
+                            {
+                              salones.push(seccionesJSON[k].aula) 
+                            }                            
+                          }
+
+                          message.watsonData.context.salones = salones
+
+                          programmaticResponse(message.watsonData).then(
+                            respuesta => {
+                              console.log(
+                                "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
+                              );
+                              console.log(
+                                "Esta es la respuesta de watson despues de haberla enrriquecido: ",
+                                respuesta
+                              );
+                              message.watsonData = respuesta;
+                              bot.reply(
+                                message,
+                                message.watsonData.output.text.join(
+                                  "\n"
+                                )
+                              );
+                            }
+                          );
+                }
+                else{
+                  message.watsonData.context.isProfessor = false;
+                  programmaticResponse(message.watsonData).then(
+                    respuesta => {
+                      message.watsonData = respuesta;
+                      bot.reply(
+                        message,
+                        message.watsonData.output.text.join(
+                          "\n"
+                        )
+                      );
+                    }
+                  );
+
+                }
+              },
               function(error1) {
                 // The callback failed.
                 console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ", error1);
@@ -241,7 +285,6 @@ const openWhiskSequence = function(bot, message, next) {
  * @param {json} payload 
  */
 const programmaticResponse = function (payload) {
-  console.log("PAYLOAD", payload)
   const requestJson = JSON.stringify(payload);
   return fetch(watsonApiUrl,
     {
@@ -253,18 +296,18 @@ const programmaticResponse = function (payload) {
       body: requestJson
     }
   ).then((response) => {
-    if (!response.ok) {
+    if(!response.ok) {
       throw response;
     }
-    return (response.json());
+    return(response.json());
   })
     .then((responseJson) => {
 
       _context = responseJson.context;
 
-      return (responseJson)
+      return(responseJson)
 
-    }).catch(function (error) {
+    }).catch(function(error) {
       throw error;
     });
 
@@ -283,7 +326,7 @@ const fetchSequence = function (incomingText) {
     input: {
       text: incomingText
     },
-    context: _context,
+    context: _context, 
   });
 
   return fetch(watsonApiUrl,
@@ -296,25 +339,25 @@ const fetchSequence = function (incomingText) {
       body: requestJson
     }
   ).then((response) => {
-    if (!response.ok) {
+    if(!response.ok) {
       throw response;
     }
-    return (response.json());
+    return(response.json());
   })
     .then((responseJson) => {
 
       _context = responseJson.context;
 
-      return (responseJson);
+      return(responseJson);
 
-    }).catch(function (error) {
+    }).catch(function(error) {
       throw error;
     });
 
 }
 
 // ---------------- Main App ----------------
-module.exports = function (app) {
+module.exports = function(app) {
   if (process.env.USE_SLACK) {
     var Slack = require('./bot-slack');
     Slack.controller.middleware.receive.use(openWhiskSequence);
@@ -334,11 +377,11 @@ module.exports = function (app) {
     console.log('Twilio bot is live');
   }
   // Personaliza acciones antes y después de las respuetsas de la llamada.
-  openWhiskSequence.before = function (message, conversationPayload, callback) {
+  openWhiskSequence.before = function(message, conversationPayload, callback) {
     callback(null, conversationPayload);
   }
 
-  openWhiskSequence.after = function (message, conversationResponse, callback) {
+  openWhiskSequence.after = function(message, conversationResponse, callback) {
     callback(null, conversationResponse);
   }
 };
