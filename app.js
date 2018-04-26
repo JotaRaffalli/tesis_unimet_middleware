@@ -223,6 +223,7 @@ const openWhiskSequence = function(bot, message, next) {
               "value",
               function(snapshot) {
                 if (snapshot.val() !== null) {
+                  message.watsonData.context.isProfessor = true;
                   userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
                   let username = userFullName[0];
                   message.watsonData.context.username = username || null;
@@ -259,6 +260,18 @@ const openWhiskSequence = function(bot, message, next) {
                           );
                 }
                 else{
+                  message.watsonData.context.isProfessor = false;
+                  programmaticResponse(message.watsonData).then(
+                    respuesta => {
+                      message.watsonData = respuesta;
+                      bot.reply(
+                        message,
+                        message.watsonData.output.text.join(
+                          "\n"
+                        )
+                      );
+                    }
+                  );
 
                 }
               },
