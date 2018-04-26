@@ -214,7 +214,9 @@ const openWhiskSequence = function(bot, message, next) {
           console.log(
             "-----------------------------Action type: buscarSalon------------------------------ "
           );
-
+          let userFullName = []
+          let salones = []
+          let _asignatura = responseJson.output.action[0].parameters.asignatura
           let carnet = Number(responseJson.output.action[0].parameters.carnet);
           console.log("ESTE ES EL CARNET:", carnet);
 
@@ -223,7 +225,47 @@ const openWhiskSequence = function(bot, message, next) {
             .equalTo(carnet)
             .on(
               "value",
-              function(snapshot) {},
+              function(snapshot) {
+                if (snapshot.val() !== null) {
+                  userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
+                  let username = userFullName[0];
+                  message.watsonData.context.username = username || null;
+                  let seccionesJSON = snapshot.val().child(carnet).val().secciones;
+                          let keys = Object.keys(seccionesJSON);
+                          for (var i = 0; i < keys.length; i++) 
+                          {
+                            let k = keys[i];
+                            if (seccionesJSON[k].asignatura == _asignatura) 
+                            {
+                              salones.push(seccionesJSON[k].aula) 
+                            }                            
+                          }
+
+                          message.watsonData.context.salones = salones
+
+                          programmaticResponse(message.watsonData).then(
+                            respuesta => {
+                              console.log(
+                                "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
+                              );
+                              console.log(
+                                "Esta es la respuesta de watson despues de haberla enrriquecido: ",
+                                respuesta
+                              );
+                              message.watsonData = respuesta;
+                              bot.reply(
+                                message,
+                                message.watsonData.output.text.join(
+                                  "\n"
+                                )
+                              );
+                            }
+                          );
+                }
+                else{
+
+                }
+              },
               function(error1) {
                 // The callback failed.
                 console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ", error1);
