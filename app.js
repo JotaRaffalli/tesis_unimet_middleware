@@ -4,6 +4,7 @@ const admin = require('firebase-admin');
 const Botkit = require("botkit");
 const  Q = require('q');
 const ejs = require('ejs');
+const Mailgun = require('mailgun-js');
 require('dotenv').load();
 
 
