@@ -4,9 +4,6 @@ const admin = require('firebase-admin');
 const Botkit = require("botkit");
 require('dotenv').load();
 
-
-
-
 // se configura servidor express que tendrá el web sockets
 // -------------------------------- FALLE --------------------------------
 //require(__dirname + '/components/express_webserver.js')(controller);
@@ -58,8 +55,8 @@ const openWhiskSequence = function(bot, message, next) {
   console.log("Mensaje Recibido de canal con éxito: ", message);
 
   message.logged = true;
-
-  if (!message.user) {
+  console.log("MENSAJEEEEEEEEEEEEEEEEEEEEEE",message)
+  if (!message.user || message.bot_id) {
     console.log("Mensaje entrante sin usuario, next() y se continua...");
     next();
   } else {
@@ -270,6 +267,12 @@ const openWhiskSequence = function(bot, message, next) {
                 console.error("ERROR Q1 NO SE ENCONTRO ESTUDIANTE : ", error2);
               }
             );
+        } else if (
+          responseJson.output.hasOwnProperty("action") &&
+          responseJson.output.action[0].name == "recordatorio"
+        ) {
+          console.log("VOY A COLOCAR UN RECORDATORIO", responseJson.output.action)
+          next();
         } else {
           next();
         }
