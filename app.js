@@ -56,7 +56,7 @@ const mailUsers = function ( carnet, _asignatura ) {
 
   let listaEstudiantes = [];
   var deffered = Q.defer();
-  // find users with preferences.notificaitons that match today
+
   refProfesores.orderByChild("carnet").equalTo(carnet).on("value",function(snapshot) {
     if (snapshot.val() !== null) 
     {
