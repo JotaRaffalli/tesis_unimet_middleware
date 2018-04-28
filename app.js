@@ -7,6 +7,9 @@ const ejs = require('ejs');
 const Mailgun = require('mailgun-js');
 require('dotenv').load();
 
+
+
+
 // se configura servidor express que tendrá el web sockets
 // -------------------------------- FALLE --------------------------------
 //require(__dirname + '/components/express_webserver.js')(controller);
@@ -60,15 +63,15 @@ const mailUsers = function ( carnet, _asignatura ) {
   refProfesores.orderByChild("carnet").equalTo(carnet).on("value",function(snapshot) {
     if (snapshot.val() !== null) 
     {
-      let seccionesJSON = snapshot.val().child(carnet).val().secciones;
+      let seccionesJSON = snapshot.child(carnet).val().secciones;
       let keys = Object.keys(seccionesJSON);
       for (var i = 0; i < keys.length; i++) 
       {
         let k = keys[i];
         if (seccionesJSON[k].asignatura == _asignatura) {
-          let estudiantesJSON = seccionesJSON[k].aula.estudiantes;
+          let estudiantesJSON = seccionesJSON[k].estudiantes;
           let keys2 = Object.keys(estudiantesJSON);
-          for(var z = 0; z < keys.length; z++)
+          for(var z = 0; z < keys2.length; z++)
           {
             let k2 = keys2[z];
             listaEstudiantes.push(
@@ -173,8 +176,8 @@ const openWhiskSequence = function(bot, message, next) {
   console.log("Mensaje Recibido de canal con éxito: ", message);
 
   message.logged = true;
-  console.log("MENSAJEEEEEEEEEEEEEEEEEEEEEE",message)
-  if (!message.user || message.bot_id) {
+
+  if (!message.user) {
     console.log("Mensaje entrante sin usuario, next() y se continua...");
     next();
   } else {
@@ -384,12 +387,6 @@ const openWhiskSequence = function(bot, message, next) {
               }
             );
         } else if (
-          responseJson.output.hasOwnProperty("action") &&
-          responseJson.output.action[0].name == "recordatorio"
-        ) {
-          console.log("VOY A COLOCAR UN RECORDATORIO", responseJson.output.action)
-          next();
-        }  else if (
           responseJson.output.hasOwnProperty("action") &&
           responseJson.output.action[0].name == "enviarCorreo"
         )
