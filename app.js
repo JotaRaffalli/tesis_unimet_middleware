@@ -5,6 +5,7 @@ const Botkit = require("botkit");
 const  Q = require('q');
 const ejs = require('ejs');
 const Mailgun = require('mailgun-js');
+const moment = require('moment')
 require('dotenv').load();
 
 
@@ -112,44 +113,48 @@ const mailUsers = function ( carnet, _asignatura ) {
  * Customiza un poco la lista de correos a enviar
  * @param {array} listaEstudiantes 
  */
-const mailCreator = function(listaEstudiantes) {
+const mailCreator = function(listaEstudiantes, mensaje, _asignaruta) {
   var mailingList = [];
-
-  for (var i = listaEstudiantes.length - 1; i >= 0; i--) {
+  for (var i = 0;  i < listaEstudiantes.length ; i++) {
     // Extraer un template de html
-    var correoParaEnviar = ejs.renderFile('server/app/emailTemplates/welcome-email.ejs', {
-      username: listaEstudiantes[i].nombre
-    });
+    var correoParaEnviar = ejs.renderFile('./emailTemplates/correo.ejs', {
+      nombre: listaEstudiantes[i].nombre,
+      mensaje: mensaje,
+      asignatura: _asignaruta
+
+    }, (err, html) => {if(err) console.log(err)});
     mailingList.push({
       user: listaEstudiantes[i].correo,
-      email: correoParaEnviar 
+      html: correoParaEnviar 
     });
   }
+
   return mailingList;
 }
 
-const mailSender = function (userEmail, subject, html, mailDay) {
+const mailSender = function (userEmail, subject, html, mailDay, mensaje) {
   // setup promises
   var deffered = Q.defer();
+
   // create new mailgun instance with credentials
   var mailgun = new Mailgun({
-    apiKey: mailgun_api, 
-    domain: mailgun_domain
+    apiKey: process.env.mailgun_api, 
+    domain: process.env.mailgun_domain
   });
   // setup the basic mail data
   var mailData = {
-    from: 'you@yourdomain.com', // TODO: CAMBIAR ESTO
+    from: 'cguillen@unimetbot.edu.ve', 
     to: userEmail,
     subject:  subject,
-    html: html,
+    html:html,
     // two other useful parameters
     // testmode lets you make API calls
     // without actually firing off any emails
-    'o:testmode': true,
+    'o:testmode': false,
     // you can specify a delivery time
     // up to three days in advance for
     // your emails to send.
-    'o:deliverytime': 'Thu, 13 Oct 2011 18:02:00 GMT' // TODO: EXTRAER FECHA Y PARSEARLA AL FORMATO CORRECTO
+    'o:deliverytime': mailDay// 'Thu, 13 Oct 2011 18:02:00 GMT' TODO: EXTRAER FECHA Y PARSEARLA AL FORMATO CORRECTO
   };
   // send your mailgun instance the mailData
   mailgun.messages().send(mailData, function (err, body) {
@@ -394,22 +399,32 @@ const openWhiskSequence = function(bot, message, next) {
           console.log("-----------------------------Action type: enviarCorreo------------------------------ ");
           let _asignatura = responseJson.output.action[0].parameters.asignatura;
           let carnet = Number(responseJson.output.action[0].parameters.carnet);
-          let mailDay // TODO: EXTRAER FECHA (Dejar que dani lo haga)
-          // TODO: MANEJAR ERRORES DE FECHA QUE SE PASA DEL MÁXIMO DE DIAS
+          let subject = responseJson.output.action[0].parameters.asunto;
+          let mensaje = responseJson.output.action[0].parameters.mensaje;
+          let mailDay = responseJson.output.action[0].parameters.mailDay || moment(Date.now()).add(30, 's').toDate(); // TODO: EXTRAER FECHA (Dejar que dani lo haga)
+          mailDay = moment(mailDay).format("ddd, DD MMM YYYY H:mm:ss");
+          mailDay = mailDay.concat(" GMT");
+          console.log("ESTE ES MAIL DAY",mailDay);
+          console.log("ESTE ES SUBJETC",subject);
+          console.log("ESTE ES MENSAJE",mensaje);
+          console.log("ESTA ES ASIGNATURA",_asignatura);
           console.log("ESTE ES EL CARNET:", carnet);
+          // TODO: MANEJAR ERRORES DE FECHA QUE SE PASA DEL MÁXIMO DE DIAS
           mailUsers(carnet, _asignatura )
             .then(function (listaEstudiantes) {
-              // Creaar la lista de correos
-              var mailing = mailCreator(listaEstudiantes);
+              // Crear la lista de correos
+              console.log("ESTA ES LA LISTA DE ESTUDIANTES",listaEstudiantes);
+              var mailing = mailCreator(listaEstudiantes, mensaje, _asignatura );
               // para cada usuario de la lista configura un email a enviar
-              for (var i = mailing.length - 1; i >= 0; i--) {
+              for (var i = 0; i < mailing.length; i++) {
+                console.log("RECORRIENDO", i)
                 // envía el email a cada usuario con su template personalizado de ejs
-                mailSender(mailing[i].user, 'Este es el subject', mailing[i].email, mailDay)
+                mailSender(mailing[i].user, subject, mailing[i].html, mailDay, mensaje)
                   .then(function (res) {
-                    console.log(res);
+                    console.log("MENSAJE ENVIADO",res);
                   })
                   .catch(function (err) {
-                    console.log("error: " + err)
+                    console.log("ERROR AL ENVIAR MENSAJE: " + err)
                   })
               }
             })
