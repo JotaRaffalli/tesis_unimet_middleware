@@ -65,6 +65,7 @@ const mailUsers = function ( carnet, _asignatura ) {
     if (snapshot.val() !== null) 
     {
       let seccionesJSON = snapshot.child(carnet).val().secciones;
+      let profesorFullName = snapshot.child(carnet).val().nombre
       let keys = Object.keys(seccionesJSON);
       for (var i = 0; i < keys.length; i++) 
       {
@@ -117,25 +118,31 @@ const mailCreator = function(listaEstudiantes, mensaje, _asignaruta) {
   var mailingList = [];
   for (var i = 0;  i < listaEstudiantes.length ; i++) {
     // Extraer un template de html
-    var correoParaEnviar = ejs.renderFile('./emailTemplates/correo.ejs', {
+    /* var correoParaEnviar = */ ejs.renderFile(__dirname+'/emailTemplates/correo.ejs', {
       nombre: listaEstudiantes[i].nombre,
       mensaje: mensaje,
       asignatura: _asignaruta
 
-    }, (err, html) => {if(err) console.log(err)});
-    mailingList.push({
-      user: listaEstudiantes[i].correo,
-      html: correoParaEnviar 
+    }, (err, _html) => {
+      if(err) console.log(err)
+      else if (_html) 
+      {
+        console.log("Html generado");
+        mailingList.push({
+          user: listaEstudiantes[i].correo,
+          html: _html 
+        });
+      }
     });
   }
 
   return mailingList;
 }
 
-const mailSender = function (userEmail, subject, html, mailDay, mensaje) {
+const mailSender = function (userEmail, subject, _html, mailDay, mensaje) {
   // setup promises
   var deffered = Q.defer();
-
+  let profesorFullName = "Christian Guillen Drija"
   // create new mailgun instance with credentials
   var mailgun = new Mailgun({
     apiKey: process.env.mailgun_api, 
@@ -143,10 +150,10 @@ const mailSender = function (userEmail, subject, html, mailDay, mensaje) {
   });
   // setup the basic mail data
   var mailData = {
-    from: 'cguillen@unimetbot.edu.ve', 
+    from: profesorFullName+"@unimetbot.edu.ve", 
     to: userEmail,
     subject:  subject,
-    html:html,
+    html:_html,
     // two other useful parameters
     // testmode lets you make API calls
     // without actually firing off any emails
