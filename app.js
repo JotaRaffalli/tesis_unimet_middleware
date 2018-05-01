@@ -64,6 +64,7 @@ const mailUsers = function (carnet, _asignatura) {
   refProfesores.orderByChild("carnet").equalTo(carnet).on("value", function (snapshot) {
     if (snapshot.val() !== null) {
       let seccionesJSON = snapshot.child(carnet).val().secciones;
+      let profesorFullName = snapshot.child(carnet).val().nombre
       let keys = Object.keys(seccionesJSON);
       for (var i = 0; i < keys.length; i++) {
         let k = keys[i];
@@ -91,7 +92,7 @@ const mailUsers = function (carnet, _asignatura) {
           message.watsonData = respuesta;
           bot.reply(message, message.watsonData.output.text.join("\n")
           );
-          deffered.resolve(listaEstudiantes);
+          deffered.reject(message.watsonData.context.isProfessor);
         }
       );
     }
@@ -113,25 +114,31 @@ const mailCreator = function (listaEstudiantes, mensaje, _asignaruta) {
   var mailingList = [];
   for (var i = 0; i < listaEstudiantes.length; i++) {
     // Extraer un template de html
-    var correoParaEnviar = ejs.renderFile('./emailTemplates/correo.ejs', {
+    /* var correoParaEnviar = */ ejs.renderFile(__dirname+'/emailTemplates/correo.ejs', {
       nombre: listaEstudiantes[i].nombre,
       mensaje: mensaje,
       asignatura: _asignaruta
 
-    }, (err, html) => { if (err) console.log(err) });
-    mailingList.push({
-      user: listaEstudiantes[i].correo,
-      html: correoParaEnviar
+    }, (err, _html) => {
+      if(err) console.log(err)
+      else if (_html) 
+      {
+        console.log("Html generado");
+        mailingList.push({
+          user: listaEstudiantes[i].correo,
+          html: _html 
+        });
+      }
     });
   }
 
   return mailingList;
 }
 
-const mailSender = function (userEmail, subject, html, mailDay, mensaje) {
+const mailSender = function (userEmail, subject, _html, mailDay, mensaje) {
   // setup promises
   var deffered = Q.defer();
-
+  let profesorFullName = "Christian Guillen Drija"
   // create new mailgun instance with credentials
   var mailgun = new Mailgun({
     apiKey: process.env.mailgun_api,
@@ -139,10 +146,10 @@ const mailSender = function (userEmail, subject, html, mailDay, mensaje) {
   });
   // setup the basic mail data
   var mailData = {
-    from: 'cguillen@unimetbot.edu.ve',
+    from: profesorFullName+"@unimetbot.edu.ve", 
     to: userEmail,
-    subject: subject,
-    html: html,
+    subject:  subject,
+    html:_html,
     // two other useful parameters
     // testmode lets you make API calls
     // without actually firing off any emails
@@ -156,8 +163,9 @@ const mailSender = function (userEmail, subject, html, mailDay, mensaje) {
   mailgun.messages().send(mailData, function (err, body) {
     // If err console.log so we can debug
     if (err) {
-      deffered.reject(console.log('failed: ' + err));
-    } else {
+      console.log('failed: ' + err)
+      deffered.reject(err);
+    } else {        
       deffered.resolve(body)
     }
   });
@@ -392,6 +400,7 @@ const openWhiskSequence = function (bot, message, next) {
           responseJson.output.action[0].name == "enviarCorreo"
         ) {
           console.log("-----------------------------Action type: enviarCorreo------------------------------ ");
+          bot.reply(message,message.watsonData.output.text.join("\n"));
           let _asignatura = responseJson.output.action[0].parameters.asignatura;
           let carnet = Number(responseJson.output.action[0].parameters.carnet);
           let subject = responseJson.output.action[0].parameters.asunto;
@@ -408,20 +417,32 @@ const openWhiskSequence = function (bot, message, next) {
           mailUsers(carnet, _asignatura)
             .then(function (listaEstudiantes) {
               // Crear la lista de correos
-              console.log("ESTA ES LA LISTA DE ESTUDIANTES", listaEstudiantes);
-              var mailing = mailCreator(listaEstudiantes, mensaje, _asignatura);
-              // para cada usuario de la lista configura un email a enviar
-              for (var i = 0; i < mailing.length; i++) {
-                console.log("RECORRIENDO", i)
-                // envía el email a cada usuario con su template personalizado de ejs
-                mailSender(mailing[i].user, subject, mailing[i].html, mailDay, mensaje)
-                  .then(function (res) {
-                    console.log("MENSAJE ENVIADO", res);
-                  })
-                  .catch(function (err) {
-                    console.log("ERROR AL ENVIAR MENSAJE: " + err)
-                  })
-              }
+              if (listaEstudiantes)
+              {
+                console.log("ESTA ES LA LISTA DE ESTUDIANTES",listaEstudiantes);
+                var mailing = mailCreator(listaEstudiantes, mensaje, _asignatura );
+                // para cada usuario de la lista configura un email a enviar
+                for (var i = 0; i < mailing.length; i++) {
+                  console.log("RECORRIENDO LISTA", i)
+                  // envía el email a cada usuario con su template personalizado de ejs
+                  mailSender(mailing[i].user, subject, mailing[i].html, mailDay, mensaje)
+                    .then(function (res) {
+                      console.log("MENSAJE ENVIADO",res);
+                    })
+                    .catch(function (err) {
+                      console.log("ERROR AL ENVIAR MENSAJE: " + err)
+                      message.watsonData.context.errorEnviando = true;
+                      programmaticResponse(message.watsonData).then(
+                        respuesta => {
+                          message.watsonData = respuesta;
+                          bot.reply(message,message.watsonData.output.text.join("\n")
+                          );
+                        }
+                      );
+                    })
+                }
+              } 
+              //next()
             })
         } else if (
           responseJson.output.hasOwnProperty("action") &&
