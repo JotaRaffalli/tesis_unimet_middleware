@@ -166,8 +166,12 @@ const mailUsers = function (carnet, _asignatura) {
           }
         }
       }
+      let retornoPromesa= {
+        listaEstudiantes:listaEstudiantes,
+        profesorFullName:profesorFullName
+      }
       
-      deffered.resolve(profesorFullName,listaEstudiantes);
+      deffered.resolve(retornoPromesa);
     }
     else {
       // No se encontró profesor con ese carnet
@@ -518,8 +522,10 @@ const openWhiskSequence = function (bot, message, next) {
           console.log("ESTE ES EL CARNET:", carnet);
           // TODO: MANEJAR ERRORES DE FECHA QUE SE PASA DEL MÁXIMO DE DIAS
           mailUsers(carnet, _asignatura)
-            .then(function (listaEstudiantes, profesorFullName) {
+            .then(function (retornoPromesa) {
               // Crear la lista de correos
+              let listaEstudiantes=retornoPromesa.listaEstudiantes
+              let profesorFullName=retornoPromesa.profesorFullName
               console.log("ëste es el professorFM",profesorFullName)
               if (profesorFullName) // Significa que si existe el profesor
               {
