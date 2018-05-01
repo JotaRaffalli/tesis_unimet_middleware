@@ -58,7 +58,7 @@ var refCarreras = db.ref("carreras");
 const reminderCreator = function (email, evento, tiempo) {
   var mailingList = []
     // Extraer un template de html
-    ejs.renderFile(__dirname + '/emailTemplates/correo.ejs', {
+    ejs.renderFile(__dirname + '/emailTemplates/recordatorio.ejs', {
     nombre: email[0].nombre,
     mensaje: evento,
     tiempo:tiempo
@@ -89,9 +89,9 @@ const buscarCorreo = function (persona, carnet) {
   return new Promise(resolve => {
     var email = []
     if (persona == "Profesor") {
-      console.log("Entro a Profesor")
-      refProfesores/*.orderByChild("carnet")
-        .equalTo(carnet)*/
+      console.log("Entro a Profesor". carnet)
+      refProfesores.orderByChild("carnet")
+        .equalTo(carnet)
         .on(
           "value",
           function (snapshot) {
