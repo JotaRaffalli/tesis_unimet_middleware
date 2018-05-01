@@ -2,7 +2,7 @@
 const fetch = require("node-fetch");
 const admin = require('firebase-admin');
 const Botkit = require("botkit");
-const  Q = require('q');
+const Q = require('q');
 const ejs = require('ejs');
 const Mailgun = require('mailgun-js');
 const moment = require('moment')
@@ -56,56 +56,52 @@ var refCarreras = db.ref("carreras");
  * @param {number} carnet 
  * @param {string} _asignatura 
  */
-const mailUsers = function ( carnet, _asignatura ) {
+const mailUsers = function (carnet, _asignatura) {
 
   let listaEstudiantes = [];
   var deffered = Q.defer();
 
-  refProfesores.orderByChild("carnet").equalTo(carnet).on("value",function(snapshot) {
-    if (snapshot.val() !== null) 
-    {
+  refProfesores.orderByChild("carnet").equalTo(carnet).on("value", function (snapshot) {
+    if (snapshot.val() !== null) {
       let seccionesJSON = snapshot.child(carnet).val().secciones;
       let keys = Object.keys(seccionesJSON);
-      for (var i = 0; i < keys.length; i++) 
-      {
+      for (var i = 0; i < keys.length; i++) {
         let k = keys[i];
         if (seccionesJSON[k].asignatura == _asignatura) {
           let estudiantesJSON = seccionesJSON[k].estudiantes;
           let keys2 = Object.keys(estudiantesJSON);
-          for(var z = 0; z < keys2.length; z++)
-          {
+          for (var z = 0; z < keys2.length; z++) {
             let k2 = keys2[z];
             listaEstudiantes.push(
               {
-                correo:estudiantesJSON[k2].correo,
-                nombre:estudiantesJSON[k2].nombre
+                correo: estudiantesJSON[k2].correo,
+                nombre: estudiantesJSON[k2].nombre
               }
             );
           }
         }
       }
       deffered.resolve(listaEstudiantes);
-    } 
-    else 
-    {
+    }
+    else {
       // No se encontró profesor con ese carnet
       message.watsonData.context.isProfessor = false;
       programmaticResponse(message.watsonData).then(
         respuesta => {
           message.watsonData = respuesta;
-          bot.reply(message,message.watsonData.output.text.join("\n")
+          bot.reply(message, message.watsonData.output.text.join("\n")
           );
           deffered.resolve(listaEstudiantes);
         }
       );
     }
   },
-  function(error1) {
-    // The callback failed.
-    console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ", error1);
-    deffered.reject(console.log('failed: ' + error1));
-    
-  });
+    function (error1) {
+      // The callback failed.
+      console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ", error1);
+      deffered.reject(console.log('failed: ' + error1));
+
+    });
   return deffered.promise;
 };
 
@@ -113,19 +109,19 @@ const mailUsers = function ( carnet, _asignatura ) {
  * Customiza un poco la lista de correos a enviar
  * @param {array} listaEstudiantes 
  */
-const mailCreator = function(listaEstudiantes, mensaje, _asignaruta) {
+const mailCreator = function (listaEstudiantes, mensaje, _asignaruta) {
   var mailingList = [];
-  for (var i = 0;  i < listaEstudiantes.length ; i++) {
+  for (var i = 0; i < listaEstudiantes.length; i++) {
     // Extraer un template de html
     var correoParaEnviar = ejs.renderFile('./emailTemplates/correo.ejs', {
       nombre: listaEstudiantes[i].nombre,
       mensaje: mensaje,
       asignatura: _asignaruta
 
-    }, (err, html) => {if(err) console.log(err)});
+    }, (err, html) => { if (err) console.log(err) });
     mailingList.push({
       user: listaEstudiantes[i].correo,
-      html: correoParaEnviar 
+      html: correoParaEnviar
     });
   }
 
@@ -138,15 +134,15 @@ const mailSender = function (userEmail, subject, html, mailDay, mensaje) {
 
   // create new mailgun instance with credentials
   var mailgun = new Mailgun({
-    apiKey: process.env.mailgun_api, 
+    apiKey: process.env.mailgun_api,
     domain: process.env.mailgun_domain
   });
   // setup the basic mail data
   var mailData = {
-    from: 'cguillen@unimetbot.edu.ve', 
+    from: 'cguillen@unimetbot.edu.ve',
     to: userEmail,
-    subject:  subject,
-    html:html,
+    subject: subject,
+    html: html,
     // two other useful parameters
     // testmode lets you make API calls
     // without actually firing off any emails
@@ -161,12 +157,12 @@ const mailSender = function (userEmail, subject, html, mailDay, mensaje) {
     // If err console.log so we can debug
     if (err) {
       deffered.reject(console.log('failed: ' + err));
-    } else {        
+    } else {
       deffered.resolve(body)
-    }      
+    }
   });
 
-  return deffered.promise; 
+  return deffered.promise;
 };
 
 
@@ -176,7 +172,7 @@ const mailSender = function (userEmail, subject, html, mailDay, mensaje) {
  * @param {json} message 
  * @param {object} next 
  */
-const openWhiskSequence = function(bot, message, next) {
+const openWhiskSequence = function (bot, message, next) {
   console.log("********** PRIMERA FASE **********");
   console.log("Mensaje Recibido de canal con éxito: ", message);
 
@@ -187,7 +183,7 @@ const openWhiskSequence = function(bot, message, next) {
     next();
   } else {
     if (message.text && message.type != "self_message") {
-      fetchSequence(message.text).then(function(responseJson) {
+      fetchSequence(message.text).then(function (responseJson) {
         console.log("********** SEGUNDA FASE **********");
         console.log("Se le envía a watson el mensaje...");
         console.log("Esta es la respuesta: ", responseJson);
@@ -323,22 +319,22 @@ const openWhiskSequence = function(bot, message, next) {
             .equalTo(carnet)
             .on(
               "value",
-            function (snapshot) {
-              if (snapshot.val() !== null) {
-                message.watsonData.context.isProfessor = true;
-                userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
-                let username = userFullName[0];
-                message.watsonData.context.username = username || null;
-                let seccionesJSON = snapshot.val().child(carnet).val().secciones;
-                let keys = Object.keys(seccionesJSON);
-                for (var i = 0; i < keys.length; i++) {
-                  let k = keys[i];
-                  if (seccionesJSON[k].asignatura == _asignatura) {
-                    salones.push(seccionesJSON[k].aula)
+              function (snapshot) {
+                if (snapshot.val() !== null) {
+                  message.watsonData.context.isProfessor = true;
+                  userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
+                  let username = userFullName[0];
+                  message.watsonData.context.username = username || null;
+                  let seccionesJSON = snapshot.val().child(carnet).val().secciones;
+                  let keys = Object.keys(seccionesJSON);
+                  for (var i = 0; i < keys.length; i++) {
+                    let k = keys[i];
+                    if (seccionesJSON[k].asignatura == _asignatura) {
+                      salones.push(seccionesJSON[k].aula)
+                    }
                   }
-                }
 
-                message.watsonData.context.salones = salones
+                  message.watsonData.context.salones = salones
 
                   programmaticResponse(message.watsonData).then(
                     respuesta => {
@@ -394,8 +390,7 @@ const openWhiskSequence = function(bot, message, next) {
         } else if (
           responseJson.output.hasOwnProperty("action") &&
           responseJson.output.action[0].name == "enviarCorreo"
-        )
-        {
+        ) {
           console.log("-----------------------------Action type: enviarCorreo------------------------------ ");
           let _asignatura = responseJson.output.action[0].parameters.asignatura;
           let carnet = Number(responseJson.output.action[0].parameters.carnet);
@@ -403,31 +398,75 @@ const openWhiskSequence = function(bot, message, next) {
           let mensaje = responseJson.output.action[0].parameters.mensaje;
           let mailDay = responseJson.output.action[0].parameters.mailDay || moment(Date.now()).add(30, 's').toDate(); // TODO: EXTRAER FECHA (Dejar que dani lo haga)
           mailDay = moment(mailDay).format("ddd, DD MMM YYYY H:mm:ss");
-          mailDay = mailDay.concat(" GMT");
-          console.log("ESTE ES MAIL DAY",mailDay);
-          console.log("ESTE ES SUBJETC",subject);
-          console.log("ESTE ES MENSAJE",mensaje);
-          console.log("ESTA ES ASIGNATURA",_asignatura);
+          mailDay = mailDay.concat(" GMT"); // TODO: VER SI FUNCIONA CON GMT - 0400
+          console.log("ESTE ES MAIL DAY", mailDay);
+          console.log("ESTE ES SUBJETC", subject);
+          console.log("ESTE ES MENSAJE", mensaje);
+          console.log("ESTA ES ASIGNATURA", _asignatura);
           console.log("ESTE ES EL CARNET:", carnet);
           // TODO: MANEJAR ERRORES DE FECHA QUE SE PASA DEL MÁXIMO DE DIAS
-          mailUsers(carnet, _asignatura )
+          mailUsers(carnet, _asignatura)
             .then(function (listaEstudiantes) {
               // Crear la lista de correos
-              console.log("ESTA ES LA LISTA DE ESTUDIANTES",listaEstudiantes);
-              var mailing = mailCreator(listaEstudiantes, mensaje, _asignatura );
+              console.log("ESTA ES LA LISTA DE ESTUDIANTES", listaEstudiantes);
+              var mailing = mailCreator(listaEstudiantes, mensaje, _asignatura);
               // para cada usuario de la lista configura un email a enviar
               for (var i = 0; i < mailing.length; i++) {
                 console.log("RECORRIENDO", i)
                 // envía el email a cada usuario con su template personalizado de ejs
                 mailSender(mailing[i].user, subject, mailing[i].html, mailDay, mensaje)
                   .then(function (res) {
-                    console.log("MENSAJE ENVIADO",res);
+                    console.log("MENSAJE ENVIADO", res);
                   })
                   .catch(function (err) {
                     console.log("ERROR AL ENVIAR MENSAJE: " + err)
                   })
               }
             })
+        } else if (
+          responseJson.output.hasOwnProperty("action") &&
+          responseJson.output.action[0].name == "recordatorio"
+        ) {
+          console.log("-----------------------------Action type: recordatorios------------------------------ ");
+          let fecha = responseJson.output.action[0].parameters.fecha
+          let evento = responseJson.output.action[0].parameters.evento
+          let hora = responseJson.output.action[0].parameters.hora
+          let carnet = responseJson.output.action[0].parameters.carnet
+          let persona = responseJson.output.action[0].parameters.persona
+          console.log("ESTA ES EL CARNET", carnet)
+          console.log("ESTA ES LA FECHA", fecha)
+          console.log("ESTA ES LA HORA", hora)
+          console.log("ESTE ES EL EVENTO", evento)
+          console.log("ESTA ES LA PERSONA", persona)
+          if (persona == "Profesor" && true) { //TODO: VERIFICAR SI ES PROFESOR
+            let ref = refProfesores.orderByChild("carnet")
+              .equalTo(carnet)
+              .on(
+                "value",
+                function (snapshot) {
+                  if (snapshot.val() != null) {
+                    let email = snapshot.child().val().correo
+                    console.log(email)
+                  } else {
+                    //TODO: ERROR HANDLING
+                  }
+                });
+          } else {
+            let ref = refEstudiantes.orderByChild("carnet")
+              .equalTo(carnet)
+              .on(
+                "value",
+                function (snapshot) {
+                  if (snapshot.val() != null) {
+                    let email = snapshot.child().val().correo
+                    console.log(email)
+                  } else {
+                    //TODO: ERROR HANDLING
+                  }
+                });
+          }
+
+          //next()
         }
         else {
           next();
@@ -455,18 +494,18 @@ const programmaticResponse = function (payload) {
       body: requestJson
     }
   ).then((response) => {
-    if(!response.ok) {
+    if (!response.ok) {
       throw response;
     }
-    return(response.json());
+    return (response.json());
   })
     .then((responseJson) => {
 
       _context = responseJson.context;
 
-      return(responseJson)
+      return (responseJson)
 
-    }).catch(function(error) {
+    }).catch(function (error) {
       throw error;
     });
 
@@ -516,7 +555,7 @@ const fetchSequence = function (incomingText) {
 }
 
 // ---------------- Main App ----------------
-module.exports = function(app) {
+module.exports = function (app) {
   if (process.env.USE_SLACK) {
     var Slack = require('./bot-slack');
     Slack.controller.middleware.receive.use(openWhiskSequence);
@@ -536,11 +575,11 @@ module.exports = function(app) {
     console.log('Twilio bot is live');
   }
   // Personaliza acciones antes y después de las respuetsas de la llamada.
-  openWhiskSequence.before = function(message, conversationPayload, callback) {
+  openWhiskSequence.before = function (message, conversationPayload, callback) {
     callback(null, conversationPayload);
   }
 
-  openWhiskSequence.after = function(message, conversationResponse, callback) {
+  openWhiskSequence.after = function (message, conversationResponse, callback) {
     callback(null, conversationResponse);
   }
 };
