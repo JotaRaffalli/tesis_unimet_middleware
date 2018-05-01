@@ -90,8 +90,8 @@ const buscarCorreo = function (persona, carnet) {
     var email = []
     if (persona == "Profesor") {
       console.log("Entro a Profesor")
-      refProfesores.orderByChild("carnet")
-        .equalTo(carnet)
+      refProfesores/*.orderByChild("carnet")
+        .equalTo(carnet)*/
         .on(
           "value",
           function (snapshot) {
