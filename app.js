@@ -565,7 +565,7 @@ const openWhiskSequence = function (bot, message, next) {
             .then(function (retornoPromesa) {
               // Crear la lista de correos
               let listaEstudiantes=retornoPromesa.listaEstudiantes
-              let profesorFullName=retornoPromesa.profesorFullName
+              let profesorFullName=retornoPromesa.profesorFullName 
               console.log("ëste es el professorFM",profesorFullName)
               if (profesorFullName) // Significa que si existe el profesor
               {
