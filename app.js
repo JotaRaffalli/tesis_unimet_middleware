@@ -52,6 +52,90 @@ var refCarreras = db.ref("carreras");
 // Funciones
 
 /**
+ * Customiza un poco la lista de correos a enviar
+ * @param {array} listaEstudiantes 
+ */
+const reminderCreator = function (email, evento, tiempo) {
+  var mailingList = []
+    // Extraer un template de html
+    /* var correoParaEnviar = */ ejs.renderFile(__dirname + '/emailTemplates/correo.ejs', {
+    nombre: email[1].nombre,
+    mensaje: evento,
+    tiempo:tiempo
+
+  }, (err, _html) => {
+    if (err) console.log(err)
+    else if (_html) {
+      console.log("Html generado");
+      mailingList.push({
+        user: email[1].correo,
+        html: _html
+      });
+    }
+  });
+
+
+  return mailingList;
+}
+
+/**
+ * 
+ * Busca el correo del profesor * 
+ * 
+ */
+
+const buscarCorreo = function (persona, carnet) {
+
+  return new Promise(resolve => {
+    var email = []
+    if (persona == "Profesor") {
+      console.log("Entro a Profesor")
+      refProfesores.orderByChild("carnet")
+        .equalTo(carnet)
+        .on(
+          "value",
+          function (snapshot) {
+            console.log(snapshot.val())
+            if (snapshot.val() != null) {
+              let key = Object.keys(snapshot.val())
+              console.log(key)
+              console.log("correo", snapshot.child(key).val().correo)
+
+              email.push(
+                {
+                  correo: snapshot.child(key).val().correo,
+                  nombre: snapshot.child(key).val().nombre
+                })
+              resolve(email)
+            } else {
+              console.log("nulo")
+              //TODO: ERROR HANDLING
+            }
+          }, function (err) {
+            console.log(err)
+          }); //TODO: ERROR HANDLING;
+    } else {
+      console.log("Entro a Estudiantes")
+      refEstudiantes.orderByChild("carnet")
+        .equalTo(carnet)
+        .on(
+          "value",
+          function (snapshot) {
+            if (snapshot.val() != null) {
+              console.log(snapshot.child().val().correo)
+              email = snapshot.child().val().correo
+              differed.resolve(email)
+            } else {
+              //TODO: ERROR HANDLING
+            }
+          });//TODO: ERROR HANDLING;
+
+    }
+  })
+}
+
+
+/**
  * Extrae lista de alumnos de una asignatura en particular
  * @param {number} carnet 
  * @param {string} _asignatura 
@@ -114,19 +198,18 @@ const mailCreator = function (listaEstudiantes, mensaje, _asignaruta) {
   var mailingList = [];
   for (var i = 0; i < listaEstudiantes.length; i++) {
     // Extraer un template de html
-    /* var correoParaEnviar = */ ejs.renderFile(__dirname+'/emailTemplates/correo.ejs', {
+    /* var correoParaEnviar = */ ejs.renderFile(__dirname + '/emailTemplates/correo.ejs', {
       nombre: listaEstudiantes[i].nombre,
       mensaje: mensaje,
       asignatura: _asignaruta
 
     }, (err, _html) => {
-      if(err) console.log(err)
-      else if (_html) 
-      {
+      if (err) console.log(err)
+      else if (_html) {
         console.log("Html generado");
         mailingList.push({
           user: listaEstudiantes[i].correo,
-          html: _html 
+          html: _html
         });
       }
     });
@@ -138,7 +221,7 @@ const mailCreator = function (listaEstudiantes, mensaje, _asignaruta) {
 const mailSender = function (userEmail, subject, _html, mailDay, mensaje) {
   // setup promises
   var deffered = Q.defer();
-  let profesorFullName = "Christian Guillen Drija" 
+  let profesorFullName = "Christian Guillen Drija"
   // create new mailgun instance with credentials
   var mailgun = new Mailgun({
     apiKey: process.env.mailgun_api,
@@ -146,10 +229,10 @@ const mailSender = function (userEmail, subject, _html, mailDay, mensaje) {
   });
   // setup the basic mail data
   var mailData = {
-    from: profesorFullName+"@unimetbot.edu.ve", 
+    from: profesorFullName + "@unimetbot.edu.ve",
     to: userEmail,
-    subject:  subject,
-    html:_html,
+    subject: subject,
+    html: _html,
     // two other useful parameters
     // testmode lets you make API calls
     // without actually firing off any emails
@@ -165,7 +248,7 @@ const mailSender = function (userEmail, subject, _html, mailDay, mensaje) {
     if (err) {
       console.log('failed: ' + err)
       deffered.reject(err);
-    } else {        
+    } else {
       deffered.resolve(body)
     }
   });
@@ -400,14 +483,14 @@ const openWhiskSequence = function (bot, message, next) {
           responseJson.output.action[0].name == "enviarCorreo"
         ) {
           console.log("-----------------------------Action type: enviarCorreo------------------------------ ");
-          bot.reply(message,message.watsonData.output.text.join("\n"));
+          bot.reply(message, message.watsonData.output.text.join("\n"));
           let _asignatura = responseJson.output.action[0].parameters.asignatura;
           let carnet = Number(responseJson.output.action[0].parameters.carnet);
           let subject = responseJson.output.action[0].parameters.asunto;
           let mensaje = responseJson.output.action[0].parameters.mensaje;
           let mailDay = responseJson.output.action[0].parameters.mailDay || moment(Date.now()).add(30, 's').toDate(); // TODO: EXTRAER FECHA (Dejar que dani lo haga)
           mailDay = moment(mailDay).format("ddd, DD MMM YYYY H:mm:ss");
-          mailDay = mailDay.concat(" GMT"); // TODO: VER SI FUNCIONA CON GMT - 0400
+          mailDay = mailDay.concat(" GMT");
           console.log("ESTE ES MAIL DAY", mailDay);
           console.log("ESTE ES SUBJETC", subject);
           console.log("ESTE ES MENSAJE", mensaje);
@@ -417,17 +500,16 @@ const openWhiskSequence = function (bot, message, next) {
           mailUsers(carnet, _asignatura)
             .then(function (listaEstudiantes) {
               // Crear la lista de correos
-              if (listaEstudiantes)
-              {
-                console.log("ESTA ES LA LISTA DE ESTUDIANTES",listaEstudiantes);
-                var mailing = mailCreator(listaEstudiantes, mensaje, _asignatura );
+              if (listaEstudiantes) {
+                console.log("ESTA ES LA LISTA DE ESTUDIANTES", listaEstudiantes);
+                var mailing = mailCreator(listaEstudiantes, mensaje, _asignatura);
                 // para cada usuario de la lista configura un email a enviar
                 for (var i = 0; i < mailing.length; i++) {
                   console.log("RECORRIENDO LISTA", i)
                   // envía el email a cada usuario con su template personalizado de ejs
                   mailSender(mailing[i].user, subject, mailing[i].html, mailDay, mensaje)
                     .then(function (res) {
-                      console.log("MENSAJE ENVIADO",res);
+                      console.log("MENSAJE ENVIADO", res);
                     })
                     .catch(function (err) {
                       console.log("ERROR AL ENVIAR MENSAJE: " + err)
@@ -435,14 +517,15 @@ const openWhiskSequence = function (bot, message, next) {
                       programmaticResponse(message.watsonData).then(
                         respuesta => {
                           message.watsonData = respuesta;
-                          bot.reply(message,message.watsonData.output.text.join("\n")
+                          bot.reply(message, message.watsonData.output.text.join("\n")
                           );
                         }
                       );
                     })
                 }
-              } 
-              //next()
+              } else {
+                next()
+              }
             })
         } else if (
           responseJson.output.hasOwnProperty("action") &&
@@ -450,42 +533,47 @@ const openWhiskSequence = function (bot, message, next) {
         ) {
           console.log("-----------------------------Action type: recordatorios------------------------------ ");
           let fecha = responseJson.output.action[0].parameters.fecha
+          fecha = moment(fecha).format("ddd, DD MMM YYYY")
           let evento = responseJson.output.action[0].parameters.evento
           let hora = responseJson.output.action[0].parameters.hora
-          let carnet = responseJson.output.action[0].parameters.carnet
+          let carnet = Number(responseJson.output.action[0].parameters.carnet)
           let persona = responseJson.output.action[0].parameters.persona
           console.log("ESTA ES EL CARNET", carnet)
           console.log("ESTA ES LA FECHA", fecha)
           console.log("ESTA ES LA HORA", hora)
           console.log("ESTE ES EL EVENTO", evento)
           console.log("ESTA ES LA PERSONA", persona)
-          if (persona == "Profesor" && true) { //TODO: VERIFICAR SI ES PROFESOR
-            let ref = refProfesores.orderByChild("carnet")
-              .equalTo(carnet)
-              .on(
-                "value",
-                function (snapshot) {
-                  if (snapshot.val() != null) {
-                    let email = snapshot.child().val().correo
-                    console.log(email)
-                  } else {
-                    //TODO: ERROR HANDLING
-                  }
-                });
-          } else {
-            let ref = refEstudiantes.orderByChild("carnet")
-              .equalTo(carnet)
-              .on(
-                "value",
-                function (snapshot) {
-                  if (snapshot.val() != null) {
-                    let email = snapshot.child().val().correo
-                    console.log(email)
-                  } else {
-                    //TODO: ERROR HANDLING
-                  }
-                });
-          }
+          let horaEnvio = fecha.concat(" ", hora, " GMT")
+          console.log("ENVIARRRR", horaEnvio)
+          let subject = "Recordatorio"
+          buscarCorreo(persona, carnet).then(email => {
+            console.log(email)
+            if (email) {
+              tiempo = moment(horaEnvio).format("ddd, DD MMM YYYY H:mm")
+              var mailing = reminderCreator(email, evento, tiempo);
+              mailSender(mailing[i].user, subject, mailing[i].html, horaEnvio, evento)
+                .then(function (res) {
+                  console.log("MENSAJE ENVIADO", res);
+                })
+                .catch(function (err) {
+                  console.log("ERROR AL ENVIAR MENSAJE: " + err)
+                  message.watsonData.context.errorEnviando = true;
+                  programmaticResponse(message.watsonData).then(
+                    respuesta => {
+                      message.watsonData = respuesta;
+                      bot.reply(message, message.watsonData.output.text.join("\n")
+                      );
+                    }
+                  );
+                })
+
+            } else {
+              console.log("No hay correo")
+              message.watsonData.context.errorCorreo = true
+              next()
+            }
+          })
+
 
           //next()
         }
