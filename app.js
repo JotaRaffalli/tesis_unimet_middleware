@@ -59,7 +59,7 @@ const reminderCreator = function (email, evento, tiempo) {
   var mailingList = []
     // Extraer un template de html
     ejs.renderFile(__dirname + '/emailTemplates/correo.ejs', {
-    nombre: email[1].nombre,
+    nombre: email[0].nombre,
     mensaje: evento,
     tiempo:tiempo
 
