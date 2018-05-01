@@ -495,7 +495,47 @@ const openWhiskSequence = function (bot, message, next) {
             .equalTo(carnet)
             .on(
               "value",
-              function (snapshot) { },
+              function (snapshot) { 
+                if (snapshot.val() !== null) {
+                  userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
+                  let username = userFullName[0];
+                  message.watsonData.context.username = username || null;
+                  let seccionesJSON = snapshot.child(carnet).val().secciones;
+                  let keys = Object.keys(seccionesJSON);
+                  for (var i = 0; i < keys.length; i++) {
+                    let k = keys[i];
+                    if (seccionesJSON[k].asignatura == _asignatura) {
+                      resultados.push(seccionesJSON[k].aula+' - '+seccionesJSON[k].horario)
+                    }
+                  }
+                  if (resultados.length > 1)
+                  {
+                    message.watsonData.context.resultados = resultados
+                  }
+                  else
+                  {
+                    message.watsonData.context.resultado = resultados[0]
+                  }
+                  programmaticResponse(message.watsonData).then(
+                    respuesta => {
+                      console.log(
+                        "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
+                      );
+                      console.log(
+                        "Esta es la respuesta de watson despues de haberla enrriquecido: ",
+                        respuesta
+                      );
+                      message.watsonData = respuesta;
+                      bot.reply(
+                        message,
+                        message.watsonData.output.text.join(
+                          "\n"
+                        )
+                      );
+                    }
+                  );
+                }
+              },
               function (error2) {
                 // The callback failed.
                 console.error("ERROR Q1 NO SE ENCONTRO ESTUDIANTE : ", error2);
