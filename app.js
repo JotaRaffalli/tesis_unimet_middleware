@@ -82,11 +82,13 @@ const mailUsers = function (carnet, _asignatura) {
           }
         }
       }
-      deffered.resolve(listaEstudiantes);
+      
+      deffered.resolve(profesorFullName,listaEstudiantes);
     }
     else {
       // No se encontró profesor con ese carnet
       message.watsonData.context.isProfessor = false;
+      // Avisa a watson que hubo un error
       programmaticResponse(message.watsonData).then(
         respuesta => {
           message.watsonData = respuesta;
@@ -114,7 +116,7 @@ const mailCreator = function (listaEstudiantes, mensaje, _asignaruta) {
   var mailingList = [];
   for (var i = 0; i < listaEstudiantes.length; i++) {
     // Extraer un template de html
-    /* var correoParaEnviar = */ ejs.renderFile(__dirname+'/emailTemplates/correo.ejs', {
+    ejs.renderFile(__dirname+'/emailTemplates/correo.ejs', {
       nombre: listaEstudiantes[i].nombre,
       mensaje: mensaje,
       asignatura: _asignaruta
@@ -135,10 +137,9 @@ const mailCreator = function (listaEstudiantes, mensaje, _asignaruta) {
   return mailingList;
 }
 
-const mailSender = function (userEmail, subject, _html, mailDay, mensaje) {
+const mailSender = function (userEmail, subject, _html, mailDay, mensaje, profesorFullName) {
   // setup promises
   var deffered = Q.defer();
-  let profesorFullName = "Christian Guillen Drija" 
   // create new mailgun instance with credentials
   var mailgun = new Mailgun({
     apiKey: process.env.mailgun_api,
@@ -312,38 +313,53 @@ const openWhiskSequence = function (bot, message, next) {
         } else if (
           responseJson.output.hasOwnProperty("action") &&
           responseJson.output.action[0].name == "buscarSalon"
-        ) {
+        ) 
+        {
           console.log(
             "-----------------------------Action type: buscarSalon------------------------------ "
           );
           let userFullName = []
-          let salones = []
+          let resultado
+          let resultados = []
+          let horario
           let _asignatura = responseJson.output.action[0].parameters.asignatura
           let carnet = Number(responseJson.output.action[0].parameters.carnet);
+          let isProfessor = responseJson.output.action[0].parameters.asignatura;
           console.log("ESTE ES EL CARNET:", carnet);
-
-          refProfesores
+          bot.reply(
+            message,
+            message.watsonData.output.text.join(
+              "\n"
+            )
+          );
+          if (isProfessor)
+          {
+            refProfesores
             .orderByChild("carnet")
             .equalTo(carnet)
             .on(
               "value",
               function (snapshot) {
                 if (snapshot.val() !== null) {
-                  message.watsonData.context.isProfessor = true;
                   userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
                   let username = userFullName[0];
                   message.watsonData.context.username = username || null;
-                  let seccionesJSON = snapshot.val().child(carnet).val().secciones;
+                  let seccionesJSON = snapshot.child(carnet).val().secciones;
                   let keys = Object.keys(seccionesJSON);
                   for (var i = 0; i < keys.length; i++) {
                     let k = keys[i];
                     if (seccionesJSON[k].asignatura == _asignatura) {
-                      salones.push(seccionesJSON[k].aula)
+                      resultados.push({aula:seccionesJSON[k].aula, horario:seccionesJSON[k].horario})
                     }
                   }
-
-                  message.watsonData.context.salones = salones
-
+                  if (resultados.length > 1)
+                  {
+                    message.watsonData.context.resultados = resultados
+                  }
+                  else
+                  {
+                    message.watsonData.context.resultado = resultados[0]
+                  }
                   programmaticResponse(message.watsonData).then(
                     respuesta => {
                       console.log(
@@ -364,7 +380,7 @@ const openWhiskSequence = function (bot, message, next) {
                   );
                 }
                 else {
-                  message.watsonData.context.isProfessor = false;
+                  message.watsonData.context.noProfessorFound = true;
                   programmaticResponse(message.watsonData).then(
                     respuesta => {
                       message.watsonData = respuesta;
@@ -384,7 +400,10 @@ const openWhiskSequence = function (bot, message, next) {
                 console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ", error1);
               }
             );
-          refEstudiantes
+          }
+          else
+          {
+            refEstudiantes
             .orderByChild("carnet")
             .equalTo(carnet)
             .on(
@@ -395,6 +414,7 @@ const openWhiskSequence = function (bot, message, next) {
                 console.error("ERROR Q1 NO SE ENCONTRO ESTUDIANTE : ", error2);
               }
             );
+          }
         } else if (
           responseJson.output.hasOwnProperty("action") &&
           responseJson.output.action[0].name == "enviarCorreo"
@@ -415,9 +435,10 @@ const openWhiskSequence = function (bot, message, next) {
           console.log("ESTE ES EL CARNET:", carnet);
           // TODO: MANEJAR ERRORES DE FECHA QUE SE PASA DEL MÁXIMO DE DIAS
           mailUsers(carnet, _asignatura)
-            .then(function (listaEstudiantes) {
+            .then(function (listaEstudiantes, profesorFullName) {
               // Crear la lista de correos
-              if (listaEstudiantes)
+              console.log("ëste es el professorFM",profesorFullName)
+              if (profesorFullName) // Significa que si existe el profesor
               {
                 console.log("ESTA ES LA LISTA DE ESTUDIANTES",listaEstudiantes);
                 var mailing = mailCreator(listaEstudiantes, mensaje, _asignatura );
@@ -425,7 +446,7 @@ const openWhiskSequence = function (bot, message, next) {
                 for (var i = 0; i < mailing.length; i++) {
                   console.log("RECORRIENDO LISTA", i)
                   // envía el email a cada usuario con su template personalizado de ejs
-                  mailSender(mailing[i].user, subject, mailing[i].html, mailDay, mensaje)
+                  mailSender(mailing[i].user, subject, mailing[i].html, mailDay, mensaje, profesorFullName)
                     .then(function (res) {
                       console.log("MENSAJE ENVIADO",res);
                     })
@@ -442,7 +463,6 @@ const openWhiskSequence = function (bot, message, next) {
                     })
                 }
               } 
-              //next()
             })
         } else if (
           responseJson.output.hasOwnProperty("action") &&
