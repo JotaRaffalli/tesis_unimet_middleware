@@ -138,7 +138,7 @@ const mailCreator = function (listaEstudiantes, mensaje, _asignaruta) {
 const mailSender = function (userEmail, subject, _html, mailDay, mensaje) {
   // setup promises
   var deffered = Q.defer();
-  let profesorFullName = "Christian Guillen Drija"
+  let profesorFullName = "Christian Guillen Drija" 
   // create new mailgun instance with credentials
   var mailgun = new Mailgun({
     apiKey: process.env.mailgun_api,
