@@ -233,8 +233,11 @@ const mailSender = function (userEmail, subject, _html, mailDay, mensaje, profes
     domain: process.env.mailgun_domain
   });
   // setup the basic mail data
+  let fromName = profesorFullName.replace(/ /g,'')
+  console.log("Este es el nombre completo: ",fromName)
+
   var mailData = {
-    from: profesorFullName + "@unimetbot.edu.ve",
+    from: fromName+"@unimetbot.edu.ve",
     to: userEmail,
     subject: subject,
     html: _html,
