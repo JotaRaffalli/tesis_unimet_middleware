@@ -234,7 +234,7 @@ const mailSender = function (userEmail, subject, _html, mailDay, mensaje, profes
   });
   // setup the basic mail data
   var mailData = {
-    from: profesorFullName + "@unimetbot.edu.ve",
+    from: profesorFullName+"@unimetbot.edu.ve",
     to: userEmail,
     subject: subject,
     html: _html,
