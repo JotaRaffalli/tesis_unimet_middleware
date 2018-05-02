@@ -68,7 +68,7 @@ const reminderCreator = function (email, evento, tiempo) {
     else if (_html) {
       console.log("Html generado");
       mailingList.push({
-        user: email[1].correo,
+        user: email[0].correo,
         html: _html
       });
     }
@@ -89,7 +89,7 @@ const buscarCorreo = function (persona, carnet) {
   return new Promise(resolve => {
     var email = []
     if (persona == "Profesor") {
-      console.log("Entro a Profesor". carnet)
+      console.log("Entro a Profesor", carnet)
       refProfesores.orderByChild("carnet")
         .equalTo(carnet)
         .on(
@@ -109,26 +109,39 @@ const buscarCorreo = function (persona, carnet) {
               resolve(email)
             } else {
               console.log("nulo")
-              //TODO: ERROR HANDLING
+              resolve(null)
             }
           }, function (err) {
             console.log(err)
+            resolve(null)
           }); //TODO: ERROR HANDLING;
     } else {
       console.log("Entro a Estudiantes")
       refEstudiantes.orderByChild("carnet")
-        .equalTo(carnet)
-        .on(
-          "value",
-          function (snapshot) {
-            if (snapshot.val() != null) {
-              console.log(snapshot.child().val().correo)
-              email = snapshot.child().val().correo
-              differed.resolve(email)
-            } else {
-              //TODO: ERROR HANDLING
-            }
-          });//TODO: ERROR HANDLING;
+      .equalTo(carnet)
+      .on(
+        "value",
+        function (snapshot) {
+          console.log(snapshot.val())
+          if (snapshot.val() != null) {
+            let key = Object.keys(snapshot.val())
+            console.log(key)
+            console.log("correo", snapshot.child(key).val().correo)
+
+            email.push(
+              {
+                correo: snapshot.child(key).val().correo,
+                nombre: snapshot.child(key).val().nombre
+              })
+            resolve(email)
+          } else {
+            console.log("nulo")
+            resolve(null)
+          }
+        }, function (err) {
+          console.log(err)
+          resolve(null)
+        });//TODO: ERROR HANDLING;
 
     }
   })
@@ -235,7 +248,8 @@ const mailSender = function (userEmail, subject, _html, mailDay, mensaje, profes
   // setup the basic mail data
   let fromName = profesorFullName.replace(/ /g,'')
   console.log("Este es el nombre completo: ",fromName)
-
+  mailDay=moment(mailDay).utcOffset(240).format("ddd, DD MMM YYYY H:mm:ss z")
+  console.log("Esta es la hora de envío", mailDay)
   var mailData = {
     from: fromName+"@unimetbot.edu.ve",
     to: userEmail,
@@ -614,6 +628,7 @@ const openWhiskSequence = function (bot, message, next) {
           console.log("ESTA ES LA HORA", hora)
           console.log("ESTE ES EL EVENTO", evento)
           console.log("ESTA ES LA PERSONA", persona)
+          
           let horaEnvio = fecha.concat(" ", hora, " GMT")
           console.log("ENVIARRRR", horaEnvio)
           let subject = "Recordatorio"
@@ -622,9 +637,18 @@ const openWhiskSequence = function (bot, message, next) {
             if (email) {
               tiempo = moment(horaEnvio).format("ddd, DD MMM YYYY H:mm")
               var mailing = reminderCreator(email, evento, tiempo);
-              mailSender(mailing[i].user, subject, mailing[i].html, horaEnvio, evento)
+              mailSender(mailing[0].user, subject, mailing[0].html, horaEnvio, evento, "recordatorio")
                 .then(function (res) {
                   console.log("MENSAJE ENVIADO", res);
+                  message.watsonData.context.success = true
+                  programmaticResponse(message.watsonData).then(
+                    respuesta => {
+                      message.watsonData = respuesta;
+                      bot.reply(message, message.watsonData.output.text.join("\n")
+                    );
+                    }
+                  );
+                  next();
                 })
                 .catch(function (err) {
                   console.log("ERROR AL ENVIAR MENSAJE: " + err)
@@ -641,7 +665,14 @@ const openWhiskSequence = function (bot, message, next) {
             } else {
               console.log("No hay correo")
               message.watsonData.context.errorCorreo = true
-              next()
+              message.watsonData.context.errorMensaje = "No se encontró un correo para el carnet indicado, intente más tarde"
+              programmaticResponse(message.watsonData).then(
+                respuesta => {
+                  message.watsonData = respuesta;
+                  bot.reply(message, message.watsonData.output.text.join("\n")
+                  );
+                }
+              );
             }
           })
 
