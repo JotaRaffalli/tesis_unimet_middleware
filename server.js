@@ -24,10 +24,12 @@ var webserver  = express();
 const Botkit = require("botkit");
 var controller = Botkit.socketbot({});
   webserver.use(
-    bodyParser.json({
-      verify: verify
-    })
+    bodyParser.json()
   );
+
+/*   webserver.use(bodyParser.urlencoded({
+    extended: true
+  })); */
 
   var port = process.env.PORT || 5000;
   webserver.set("port", port);

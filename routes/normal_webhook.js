@@ -4,14 +4,13 @@ module.exports = function(webserver, controller) {
     webserver.post('/botkit/receive', function(req, res) {
 
         
-        res.status(200);
-        res.send('exito');
+       
 
         var bot = controller.spawn({});
-        
-        console.log("ESTE ES EL CONTROLLLLLLLLLLLLLLLER",controller)
+        console.log("-------------------------- req.body ",req.body);
         controller.handleWebhookPayload(req, res, bot);       
-        
+        res.status(200);
+        //res.send('exito');
         //controller.on('message_received',  bot.reply(message, 'I experienced an error with a request to Botkit Studio: ' + err)); 
 
     });
