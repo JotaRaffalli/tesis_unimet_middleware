@@ -737,11 +737,7 @@ const fetchSequence = function (incomingText) {
 }
 
 // ---------------- Main App ----------------
-<<<<<<< HEAD
 module.exports.main = function(app, controller) {
-=======
-module.exports = function (app) {
->>>>>>> refs/remotes/origin/master
   if (process.env.USE_SLACK) {
     var Slack = require('./bot-slack');
     Slack.controller.middleware.receive.use(openWhiskSequence);

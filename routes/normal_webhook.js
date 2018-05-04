@@ -1,4 +1,4 @@
-var openWhiskSequence = require('./../app.js').openWhiskSequence;
+/* var openWhiskSequence = require('./../app.js').openWhiskSequence; */
 module.exports = function(webserver, controller) {
 
     webserver.post('/botkit/receive', function(req, res) {
