@@ -117,7 +117,7 @@ const buscarCorreo = function (persona, carnet) {
           }); //TODO: ERROR HANDLING;
     } else {
       console.log("Entro a Estudiantes")
-      refEstudiantes.orderByChild("carnet")
+      refEstudiantes.orderByChild("carnet") 
       .equalTo(carnet)
       .on(
         "value",
