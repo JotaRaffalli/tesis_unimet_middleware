@@ -51,17 +51,38 @@ var refCarreras = db.ref("carreras");
 
 // Funciones
 
+const buscarElectivas = function (trimestre, tipoElectivas) {
+  return new Promise(resolve => {
+    refElectivas.child(trimestre).orderByKey().startAt(tipoElectivas).endAt(tipoElectivas + "\uf8ff").on("value", function (snapshot) {
+      if (snapshot.val() != null) {
+        console.log("SNAAAAAAAAP", snapshot.val())
+        resultado = snapshot.val();
+        deffered.resolve(resultado)
+      } else {
+        deffered.reject(null)
+      }
+    }, function (error) {
+      // The callback failed.
+      console.error("ERROR NO SE HALLARON ELECTIVAS : ", error1);
+      deffered.reject(console.log('failed: ' + error1));
+    });
+  })
+}
+
+
+
+
 /**
  * Customiza un poco la lista de correos a enviar
  * @param {array} listaEstudiantes 
  */
 const reminderCreator = function (email, evento, tiempo) {
   var mailingList = []
-    // Extraer un template de html
-    ejs.renderFile(__dirname + '/emailTemplates/recordatorio.ejs', {
+  // Extraer un template de html
+  ejs.renderFile(__dirname + '/emailTemplates/recordatorio.ejs', {
     nombre: email[0].nombre,
     mensaje: evento,
-    tiempo:tiempo
+    tiempo: tiempo
 
   }, (err, _html) => {
     if (err) console.log(err)
@@ -117,31 +138,31 @@ const buscarCorreo = function (persona, carnet) {
           }); //TODO: ERROR HANDLING;
     } else {
       console.log("Entro a Estudiantes")
-      refEstudiantes.orderByChild("carnet") 
-      .equalTo(carnet)
-      .on(
-        "value",
-        function (snapshot) {
-          console.log(snapshot.val())
-          if (snapshot.val() != null) {
-            let key = Object.keys(snapshot.val())
-            console.log(key)
-            console.log("correo", snapshot.child(key).val().correo)
+      refEstudiantes.orderByChild("carnet")
+        .equalTo(carnet)
+        .on(
+          "value",
+          function (snapshot) {
+            console.log(snapshot.val())
+            if (snapshot.val() != null) {
+              let key = Object.keys(snapshot.val())
+              console.log(key)
+              console.log("correo", snapshot.child(key).val().correo)
 
-            email.push(
-              {
-                correo: snapshot.child(key).val().correo,
-                nombre: snapshot.child(key).val().nombre
-              })
-            resolve(email)
-          } else {
-            console.log("nulo")
+              email.push(
+                {
+                  correo: snapshot.child(key).val().correo,
+                  nombre: snapshot.child(key).val().nombre
+                })
+              resolve(email)
+            } else {
+              console.log("nulo")
+              resolve(null)
+            }
+          }, function (err) {
+            console.log(err)
             resolve(null)
-          }
-        }, function (err) {
-          console.log(err)
-          resolve(null)
-        });//TODO: ERROR HANDLING;
+          });//TODO: ERROR HANDLING;
 
     }
   })
@@ -179,11 +200,11 @@ const mailUsers = function (carnet, _asignatura) {
           }
         }
       }
-      let retornoPromesa= {
-        listaEstudiantes:listaEstudiantes,
-        profesorFullName:profesorFullName
+      let retornoPromesa = {
+        listaEstudiantes: listaEstudiantes,
+        profesorFullName: profesorFullName
       }
-      
+
       deffered.resolve(retornoPromesa);
     }
     else {
@@ -217,7 +238,7 @@ const mailCreator = function (listaEstudiantes, mensaje, _asignaruta) {
   var mailingList = [];
   for (var i = 0; i < listaEstudiantes.length; i++) {
     // Extraer un template de html
-    ejs.renderFile(__dirname+'/emailTemplates/correo.ejs', {
+    ejs.renderFile(__dirname + '/emailTemplates/correo.ejs', {
       nombre: listaEstudiantes[i].nombre,
       mensaje: mensaje,
       asignatura: _asignaruta
@@ -246,12 +267,12 @@ const mailSender = function (userEmail, subject, _html, mailDay, mensaje, profes
     domain: process.env.mailgun_domain
   });
   // setup the basic mail data
-  let fromName = profesorFullName.replace(/ /g,'')
-  console.log("Este es el nombre completo: ",fromName)
-  mailDay=moment(mailDay).utcOffset(240).format("ddd, DD MMM YYYY H:mm:ss z")
+  let fromName = profesorFullName.replace(/ /g, '')
+  console.log("Este es el nombre completo: ", fromName)
+  mailDay = moment(mailDay).utcOffset(240).format("ddd, DD MMM YYYY H:mm:ss z")
   console.log("Esta es la hora de envío", mailDay)
   var mailData = {
-    from: fromName+"@unimetbot.edu.ve",
+    from: fromName + "@unimetbot.edu.ve",
     to: userEmail,
     subject: subject,
     html: _html,
@@ -417,8 +438,7 @@ const openWhiskSequence = function (bot, message, next) {
         } else if (
           responseJson.output.hasOwnProperty("action") &&
           responseJson.output.action[0].name == "buscarSalon"
-        ) 
-        {
+        ) {
           console.log(
             "-----------------------------Action type: buscarSalon------------------------------ "
           );
@@ -436,128 +456,122 @@ const openWhiskSequence = function (bot, message, next) {
               "\n"
             )
           );
-          if (isProfessor)
-          {
+          if (isProfessor) {
             refProfesores
-            .orderByChild("carnet")
-            .equalTo(carnet)
-            .on(
-              "value",
-              function (snapshot) {
-                if (snapshot.val() !== null) {
-                  userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
-                  let username = userFullName[0];
-                  message.watsonData.context.username = username || null;
-                  let seccionesJSON = snapshot.child(carnet).val().secciones;
-                  let keys = Object.keys(seccionesJSON);
-                  for (var i = 0; i < keys.length; i++) {
-                    let k = keys[i];
-                    if (seccionesJSON[k].asignatura == _asignatura) {
-                      resultados.push({aula:seccionesJSON[k].aula, horario:seccionesJSON[k].horario})
+              .orderByChild("carnet")
+              .equalTo(carnet)
+              .on(
+                "value",
+                function (snapshot) {
+                  if (snapshot.val() !== null) {
+                    userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
+                    let username = userFullName[0];
+                    message.watsonData.context.username = username || null;
+                    let seccionesJSON = snapshot.child(carnet).val().secciones;
+                    let keys = Object.keys(seccionesJSON);
+                    for (var i = 0; i < keys.length; i++) {
+                      let k = keys[i];
+                      if (seccionesJSON[k].asignatura == _asignatura) {
+                        resultados.push({ aula: seccionesJSON[k].aula, horario: seccionesJSON[k].horario })
+                      }
                     }
-                  }
-                  if (resultados.length > 1)
-                  {
-                    message.watsonData.context.resultados = resultados
-                  }
-                  else
-                  {
-                    message.watsonData.context.resultado = resultados[0]
-                  }
-                  programmaticResponse(message.watsonData).then(
-                    respuesta => {
-                      console.log(
-                        "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
-                      );
-                      console.log(
-                        "Esta es la respuesta de watson despues de haberla enrriquecido: ",
-                        respuesta
-                      );
-                      message.watsonData = respuesta;
-                      bot.reply(
-                        message,
-                        message.watsonData.output.text.join(
-                          "\n"
-                        )
-                      );
+                    if (resultados.length > 1) {
+                      message.watsonData.context.resultados = resultados
                     }
-                  );
-                }
-                else {
-                  message.watsonData.context.noProfessorFound = true;
-                  programmaticResponse(message.watsonData).then(
-                    respuesta => {
-                      message.watsonData = respuesta;
-                      bot.reply(
-                        message,
-                        message.watsonData.output.text.join(
-                          "\n"
-                        )
-                      );
+                    else {
+                      message.watsonData.context.resultado = resultados[0]
                     }
-                  );
+                    programmaticResponse(message.watsonData).then(
+                      respuesta => {
+                        console.log(
+                          "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
+                        );
+                        console.log(
+                          "Esta es la respuesta de watson despues de haberla enrriquecido: ",
+                          respuesta
+                        );
+                        message.watsonData = respuesta;
+                        bot.reply(
+                          message,
+                          message.watsonData.output.text.join(
+                            "\n"
+                          )
+                        );
+                      }
+                    );
+                  }
+                  else {
+                    message.watsonData.context.noProfessorFound = true;
+                    programmaticResponse(message.watsonData).then(
+                      respuesta => {
+                        message.watsonData = respuesta;
+                        bot.reply(
+                          message,
+                          message.watsonData.output.text.join(
+                            "\n"
+                          )
+                        );
+                      }
+                    );
 
+                  }
+                },
+                function (error1) {
+                  // The callback failed.
+                  console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ", error1);
                 }
-              },
-              function (error1) {
-                // The callback failed.
-                console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ", error1);
-              }
-            );
+              );
           }
-          else
-          {
+          else {
             refEstudiantes
-            .orderByChild("carnet")
-            .equalTo(carnet)
-            .on(
-              "value",
-              function (snapshot) { 
-                if (snapshot.val() !== null) {
-                  userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
-                  let username = userFullName[0];
-                  message.watsonData.context.username = username || null;
-                  let seccionesJSON = snapshot.child(carnet).val().secciones;
-                  let keys = Object.keys(seccionesJSON);
-                  for (var i = 0; i < keys.length; i++) {
-                    let k = keys[i];
-                    if (seccionesJSON[k].asignatura == _asignatura) {
-                      resultados.push(seccionesJSON[k].aula+' - '+seccionesJSON[k].horario)
+              .orderByChild("carnet")
+              .equalTo(carnet)
+              .on(
+                "value",
+                function (snapshot) {
+                  if (snapshot.val() !== null) {
+                    userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
+                    let username = userFullName[0];
+                    message.watsonData.context.username = username || null;
+                    let seccionesJSON = snapshot.child(carnet).val().secciones;
+                    let keys = Object.keys(seccionesJSON);
+                    for (var i = 0; i < keys.length; i++) {
+                      let k = keys[i];
+                      if (seccionesJSON[k].asignatura == _asignatura) {
+                        resultados.push(seccionesJSON[k].aula + ' - ' + seccionesJSON[k].horario)
+                      }
                     }
-                  }
-                  if (resultados.length > 1)
-                  {
-                    message.watsonData.context.resultados = resultados
-                  }
-                  else
-                  {
-                    message.watsonData.context.resultado = resultados[0]
-                  }
-                  programmaticResponse(message.watsonData).then(
-                    respuesta => {
-                      console.log(
-                        "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
-                      );
-                      console.log(
-                        "Esta es la respuesta de watson despues de haberla enrriquecido: ",
-                        respuesta
-                      );
-                      message.watsonData = respuesta;
-                      bot.reply(
-                        message,
-                        message.watsonData.output.text.join(
-                          "\n"
-                        )
-                      );
+                    if (resultados.length > 1) {
+                      message.watsonData.context.resultados = resultados
                     }
-                  );
+                    else {
+                      message.watsonData.context.resultado = resultados[0]
+                    }
+                    programmaticResponse(message.watsonData).then(
+                      respuesta => {
+                        console.log(
+                          "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
+                        );
+                        console.log(
+                          "Esta es la respuesta de watson despues de haberla enrriquecido: ",
+                          respuesta
+                        );
+                        message.watsonData = respuesta;
+                        bot.reply(
+                          message,
+                          message.watsonData.output.text.join(
+                            "\n"
+                          )
+                        );
+                      }
+                    );
+                  }
+                },
+                function (error2) {
+                  // The callback failed.
+                  console.error("ERROR Q1 NO SE ENCONTRO ESTUDIANTE : ", error2);
                 }
-              },
-              function (error2) {
-                // The callback failed.
-                console.error("ERROR Q1 NO SE ENCONTRO ESTUDIANTE : ", error2);
-              }
-            );
+              );
           }
         } else if (
           responseJson.output.hasOwnProperty("action") &&
@@ -581,13 +595,13 @@ const openWhiskSequence = function (bot, message, next) {
           mailUsers(carnet, _asignatura)
             .then(function (retornoPromesa) {
               // Crear la lista de correos
-              let listaEstudiantes=retornoPromesa.listaEstudiantes
-              let profesorFullName=retornoPromesa.profesorFullName 
-              console.log("ëste es el professorFM",profesorFullName)
+              let listaEstudiantes = retornoPromesa.listaEstudiantes
+              let profesorFullName = retornoPromesa.profesorFullName
+              console.log("ëste es el professorFM", profesorFullName)
               if (profesorFullName) // Significa que si existe el profesor
               {
-                console.log("ESTA ES LA LISTA DE ESTUDIANTES",listaEstudiantes);
-                var mailing = mailCreator(listaEstudiantes, mensaje, _asignatura );
+                console.log("ESTA ES LA LISTA DE ESTUDIANTES", listaEstudiantes);
+                var mailing = mailCreator(listaEstudiantes, mensaje, _asignatura);
                 // para cada usuario de la lista configura un email a enviar
                 for (var i = 0; i < mailing.length; i++) {
                   console.log("RECORRIENDO LISTA", i)
@@ -628,7 +642,7 @@ const openWhiskSequence = function (bot, message, next) {
           console.log("ESTA ES LA HORA", hora)
           console.log("ESTE ES EL EVENTO", evento)
           console.log("ESTA ES LA PERSONA", persona)
-          
+
           let horaEnvio = fecha.concat(" ", hora, " GMT")
           console.log("ENVIARRRR", horaEnvio)
           let subject = "Recordatorio"
@@ -645,7 +659,7 @@ const openWhiskSequence = function (bot, message, next) {
                     respuesta => {
                       message.watsonData = respuesta;
                       bot.reply(message, message.watsonData.output.text.join("\n")
-                    );
+                      );
                     }
                   );
                   next();
