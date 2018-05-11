@@ -47,24 +47,32 @@ var refEstudiantes = db.ref("estudiantes");
 var refRecordatorios = db.ref("recordatorios");
 var refSecciones = db.ref("secciones");
 var refCarreras = db.ref("carreras");
-
+var refElectivas = db.ref("electivas");
 
 // Funciones
 
 const buscarElectivas = function (trimestre, tipoElectivas) {
+  lista = []
   return new Promise(resolve => {
     refElectivas.child(trimestre).orderByKey().startAt(tipoElectivas).endAt(tipoElectivas + "\uf8ff").on("value", function (snapshot) {
       if (snapshot.val() != null) {
         console.log("SNAAAAAAAAP", snapshot.val())
         resultado = snapshot.val();
-        deffered.resolve(resultado)
+        let keys = Object.keys(resultado);
+        for (var z = 0; z < keys.length; z++) {
+          let k = keys[z];
+          lista.push(
+            resultado[k].nombre
+          );
+        }
+        resolve(lista)
       } else {
-        deffered.reject(null)
+        reject(null)
       }
     }, function (error) {
       // The callback failed.
       console.error("ERROR NO SE HALLARON ELECTIVAS : ", error1);
-      deffered.reject(console.log('failed: ' + error1));
+      reject(console.log('failed: ' + error1));
     });
   })
 }
@@ -622,6 +630,14 @@ const openWhiskSequence = function (bot, message, next) {
                       );
                     })
                 }
+                message.watsonData.context.confirmation = true
+                programmaticResponse(message.watsonData).then(
+                  respuesta => {
+                    message.watsonData = respuesta;
+                    bot.reply(message, message.watsonData.output.text.join("\n")
+                    );
+                  }
+                );
               } else {
                 next()
               }
@@ -692,8 +708,49 @@ const openWhiskSequence = function (bot, message, next) {
 
 
           //next()
-        }
-        else {
+        } else if (
+          responseJson.output.hasOwnProperty("action") &&
+          responseJson.output.action[0].name == "buscarElectivas"
+        ) {
+          let trimestre = responseJson.output.action[0].parameters.trimestre || "1718-3"
+          let tipoElectivas = responseJson.output.action[0].parameters.tipoElectiva
+          //responseJson.output.action[0].parameters.trimestre ? trimestre=responseJson.output.action[0].parameters.trimestre : tipoElectivas=responseJson.output.action[0].parameters.trimestreActual
+          console.log("TRIMESTRE ", trimestre, " Tipo ELECTIVCAS", tipoElectivas)
+
+          buscarElectivas(trimestre, tipoElectivas).then(resultado => {
+            console.log("Hacer Listaaaa", resultado)
+            message.watsonData.context.listaElectivas = resultado
+            console.log("WAAAATSON", watsonData)
+            programmaticResponse(message.watsonData).then(
+              respuesta => {
+                console.log(
+                  "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
+                );
+                console.log(
+                  "Esta es la respuesta de watson despues de haberla enrriquecido: ",
+                  respuesta
+                );
+                message.watsonData = respuesta;
+                bot.reply(
+                  message,
+                  message.watsonData.output.text.join(
+                    "\n"
+                  )
+                );
+              }
+            );
+          }).catch(err => {
+            message.watsonData.context.errorCallback = true;
+            programmaticResponse(message.watsonData).then(
+              respuesta => {
+                message.watsonData = respuesta;
+                bot.reply(message, message.watsonData.output.text.join("\n")
+                );
+              }
+            );
+          })
+          responseJson.output.action = null
+        } else {
           next();
         }
       });
