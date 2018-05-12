@@ -22,14 +22,16 @@ var verify = require('./security');
 var http = require('http');
 var webserver  = express();
 const Botkit = require("botkit");
+const cors = require('cors')
+// Botkit web controller
 var controller = Botkit.socketbot({});
+  
+  // Para que funcione con local host
+  webserver.use(cors())
+  // Para recuperar el body del webhook
   webserver.use(
     bodyParser.json()
   );
-
-/*   webserver.use(bodyParser.urlencoded({
-    extended: true
-  })); */
 
   var port = process.env.PORT || 5000;
   webserver.set("port", port);

@@ -18,7 +18,7 @@ require('dotenv').load();
 // Variables
 var _context = { timezone: "America/Caracas" };
 const watsonApiUrl = 'https://openwhisk.ng.bluemix.net/api/v1/web/diazdaniel%40correo.unimet.edu.ve_Tesis-DevSpace/assistant-with-discovery-openwhisk/assistant-with-discovery-sequence.json'
-
+let watsonDataAux;
 
 
 // Inicialización
@@ -334,6 +334,7 @@ const openWhiskSequence = function (bot, message, next) {
 
         message.watsonData = responseJson;
         message.watsonData.context.timezone = "America/Caracas";
+        watsonDataAux = message.watsonData;
         // Verifica propiedad action de la respuesta
         console.log(
           "Esto es lo que tiene la propiedad action: ",
@@ -839,7 +840,7 @@ const fetchSequence = function (incomingText) {
 }
 
 // ---------------- Main App ----------------
-module.exports.main = function(app, controller) {
+module.exports.main = function(app, webController) {
   if (process.env.USE_SLACK) {
     var Slack = require('./bot-slack');
     Slack.controller.middleware.receive.use(openWhiskSequence);
@@ -859,21 +860,33 @@ module.exports.main = function(app, controller) {
     console.log('Twilio bot is live');
   }
 
-  controller.openSocketServer(controller.httpserver);
-  controller.middleware.receive.use(openWhiskSequence);
-  controller.startTicking();
-  controller.hears(['.*'], 'message_received', function(bot, message) {
+  // Abre sockets para que aplicaciones que posean la arquitectura se conecten al middleware
+  webController.openSocketServer(webController.httpserver);
+
+  // Configura controlador web para que use la secuencia de OpenWhisk para el flujo de información
+
+  webController.middleware.receive.use(openWhiskSequence);
+  // Personaliza el mensaje del sistema bot web antes de enviarlo
+  webController.middleware.send.use(function(bot, message, next) {
+    message.watsonResponseData = watsonDataAux;
+    next();
+
+});
+
+// Arranca el sistema bot para procesar los webhooks y websockets cada 1.5 segundos (lo despierta para evitar lag)
+webController.startTicking();
+// Configura el sistema bot web para accionarse al evento de mensaje entrante
+webController.hears(['.*'], 'message_received', function(bot, message) {
     if (message.watsonError) {
       console.log(message.watsonError);
       bot.reply(message, message.watsonError.description || message.watsonError.error);
     } else if (message.watsonData && 'output' in message.watsonData) {
       bot.reply(message, message.watsonData.output.text.join('\n'));
     } else {
-      console.log('Error: received message in unknown format. (Is your connection with Watson Conversation up and running?)');
-      bot.reply(message, "I'm sorry, but for technical reasons I can't respond to your message");
+      console.log('Error: Se recivió un mensaje con el formato erroneo. Verificar conexión con IBM watson');
+      bot.reply(message, "Lo sentimos, pero por razones técnicas no podemos atenderle en estos momentos.");
     }
   });
- /*  controller.createWebhookEndpoints(app, Twilio.bot);  */
 
   // Personaliza acciones antes y después de las respuetsas de la llamada.
   openWhiskSequence.before = function (message, conversationPayload, callback) {
