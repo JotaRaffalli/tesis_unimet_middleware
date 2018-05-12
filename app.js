@@ -89,6 +89,8 @@ const buscarElectivas = function (trimestre, tipoElectivas) {
 const reminderCreator = function (email, evento, tiempo) {
   var mailingList = []
   // Extraer un template de html
+  tiempoAux=moment(tiempo).format("H:mm:ss DD/MM/YY")
+
   ejs.renderFile(__dirname + '/emailTemplates/recordatorio.ejs', {
     nombre: email[0].nombre,
     mensaje: evento,
