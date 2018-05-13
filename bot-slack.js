@@ -15,6 +15,7 @@
  */
 
 var Botkit = require('botkit');
+var processWatsonResponse = require('./app.js').processWatsonResponse
 
 var controller = Botkit.slackbot();
 var bot = controller.spawn({
@@ -26,12 +27,15 @@ controller.hears(['.*'], ['direct_message', 'direct_mention', 'mention'], functi
     console.log(message.watsonError);
     bot.reply(message, message.watsonError.description || message.watsonError.error);
   } else if (message.watsonData && 'output' in message.watsonData) {
+    console.log('aaaaa')
+    processWatsonResponse(bot, message)
     bot.reply(message, message.watsonData.output.text.join('\n'));
   } else {
     console.log('Error: received message in unknown format. (Is your connection with Watson Conversation up and running?)');
     bot.reply(message, "I'm sorry, but for technical reasons I can't respond to your message");
   }
 });
+
 
 module.exports.controller = controller;
 module.exports.bot = bot;

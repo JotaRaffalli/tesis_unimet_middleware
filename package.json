@@ -10,7 +10,7 @@
   "dependencies": {
     "body-parser": "^1.15.2",
     "botkit": "^0.6.13",
-    "botkit-middleware-watson": "^1.6.1",
+    "botkit-middleware-watson": "^1.7.1",
     "cors": "^2.8.4",
     "dotenv": "^2.0.0",
     "ejs": "^2.5.9",
