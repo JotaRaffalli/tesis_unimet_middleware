@@ -461,7 +461,7 @@ const openWhiskSequence = function (bot, message, next) {
           let horario
           let _asignatura = responseJson.output.action[0].parameters.asignatura
           let carnet = Number(responseJson.output.action[0].parameters.carnet);
-          let isProfessor = responseJson.output.action[0].parameters.asignatura;
+          let isProfessor = responseJson.output.action[0].parameters.isProfessor;
           console.log("ESTE ES EL CARNET:", carnet);
           bot.reply(
             message,
@@ -864,6 +864,8 @@ module.exports.main = function(app, webController) {
 
   // Abre sockets para que aplicaciones que posean la arquitectura se conecten al middleware
   webController.openSocketServer(webController.httpserver);
+
+
 
   // Configura controlador web para que use la secuencia de OpenWhisk para el flujo de información
 

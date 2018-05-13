@@ -2,11 +2,10 @@
 module.exports = function(webserver, controller) {
 
     webserver.post('/botkit/receive', function(req, res) {
-
-        
-       
-
         var bot = controller.spawn({});
+        /* webController.createWebhookEndpoints(webserver, bot, function () {
+            console.log('ONLINE!');
+        }); */
         console.log("-------------------------- req.body ",req.body);
         controller.handleWebhookPayload(req, res, bot);       
         res.status(200);
