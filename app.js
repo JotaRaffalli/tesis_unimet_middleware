@@ -89,7 +89,7 @@ const buscarElectivas = function (trimestre, tipoElectivas) {
 const reminderCreator = function (email, evento, tiempo) {
   var mailingList = []
   // Extraer un template de html
-  tiempoAux=moment(tiempo).format("H:mm:ss DD/MM/YY")
+  tiempoAux = moment(tiempo).format("H:mm:ss DD/MM/YY")
 
   ejs.renderFile(__dirname + '/emailTemplates/recordatorio.ejs', {
     nombre: email[0].nombre,
@@ -312,378 +312,268 @@ const mailSender = function (userEmail, subject, _html, mailDay, mensaje, profes
 };
 
 
-/**
- * Se conecta a la secuencia y le envía el mensaje que recibió
- * @param {bot} bot 
- * @param {json} message 
- * @param {object} next 
- */
-const openWhiskSequence = function (bot, message, next) {
+
+var processWatsonResponse = function (bot, message) {
   console.log("********** PRIMERA FASE **********");
   console.log("Mensaje Recibido de canal con éxito: ", message);
+  responseJson=message.watsonData
+  console.log("RESPUESTA", responseJson)
+  if (responseJson) {
+    if (
+      responseJson.output.hasOwnProperty("action") &&
+      responseJson.output.action[0].name == "buscarCertificados"
+    ) {
+      console.log(
+        "-----------------------------Action type: buscarCertificados------------------------------ "
+      );
+      let carnet = Number(responseJson.output.action[0].parameters.carnet);
+      let certificadosArray = [];
+      let userFullName = [];
 
-  message.logged = true;
+      console.log("ESTE ES EL CARNET:", carnet);
 
-  if (!message.user) {
-    console.log("Mensaje entrante sin usuario, next() y se continua...");
-    next();
-  } else {
-    if (message.text && message.type != "self_message") {
-      fetchSequence(message.text).then(function (responseJson) {
-        console.log("********** SEGUNDA FASE **********");
-        console.log("Se le envía a watson el mensaje...");
-        console.log("Esta es la respuesta: ", responseJson);
+      refEstudiantes
+        .orderByChild("carnet")
+        .equalTo(carnet)
+        .on("value", function (snapshot) {
+          if (snapshot.val() !== null) {
+            //user exists, do something
+            let carrera = snapshot.child(carnet).val().carrera;
+            userFullName = snapshot
+              .child(carnet)
+              .val()
+              .nombre.split(" ") || null;
+            let username = userFullName[0];
+            message.watsonData.context.username = username || null;
+            message.watsonData.context.carrera = carrera;
+            refCarreras
+              .orderByChild("nombre")
+              .equalTo(carrera)
+              .on("value", function (snapshot2) {
+                if (snapshot.val() !== null) {
+                  let certfJSON = snapshot2
+                    .child(carrera)
+                    .val().certificados;
+                  let keys = Object.keys(certfJSON);
+                  for (var i = 0; i < keys.length; i++) {
+                    let k = keys[i];
+                    let nombreCert = certfJSON[k].nombre;
+                    certificadosArray.push(nombreCert);
+                  }
 
-        message.watsonData = responseJson;
-        message.watsonData.context.timezone = "America/Caracas";
-        watsonDataAux = message.watsonData;
-        // Verifica propiedad action de la respuesta
-        console.log(
-          "Esto es lo que tiene la propiedad action: ",
-          responseJson.output.action
+                  message.watsonData.context.certificadosDeCarrera = certificadosArray;
+                  message.watsonData.output.action = null;
+                  certificadosArray = [];
+                  console.log("Nuevo mensaje enrriquecido, propiedad watsonData: ", message.watsonData);
+                  middleware.sendToWatsonAsync(bot, message, message.context).then(function(){
+                    bot.reply(message, message.watsonData.output.text.join('\n'))  
+                  })                
+                } else {
+                  message.watsonData.context.callbackError =
+                    "No se contro carrera del estudiante en referencia de carreras.";
+                    middleware.sendToWatsonAsync(bot, message, message.context).then(function(){
+                      bot.reply(message, message.watsonData.output.text.join('\n'))  
+                    })
+                }
+              }, function (error2) {
+                // The callback failed.
+                console.error("ERROR Q2 : ", error2);
+                message.watsonData.context.callbackError = error2;
+                middleware.sendToWatsonAsync(bot, message, message.context).then(function(){
+                  bot.reply(message, message.watsonData.output.text.join('\n'))  
+                })
+              }
+              );
+          } else {
+            message.watsonData.context.callbackError =
+              "Vaya! Al parecer no hay ningún estudiante con ese carnet, por favor intentelo de nuevo más tarde.";
+              middleware.sendToWatsonAsync(bot, message, message.context).then(function(){
+                bot.reply(message, message.watsonData.output.text.join('\n'))  
+              })
+          }
+        }, function (error1) {
+          // The callback failed.
+          console.error("ERROR Q1 : ", error1);
+          message.watsonData.context.callbackError = error1;
+          middleware.sendToWatsonAsync(bot, message, message.context).then(function(){
+            bot.reply(message, message.watsonData.output.text.join('\n'))  
+          })
+        }
         );
-        if (
-          responseJson.output.hasOwnProperty("action") &&
-          responseJson.output.action[0].name == "buscarCertificados"
-        ) {
-          console.log(
-            "-----------------------------Action type: buscarCertificados------------------------------ "
-          );
-          let carnet = Number(responseJson.output.action[0].parameters.carnet);
-          let certificadosArray = [];
-          let userFullName = [];
-
-          console.log("ESTE ES EL CARNET:", carnet);
-
-          refEstudiantes
-            .orderByChild("carnet")
-            .equalTo(carnet)
-            .on("value", function (snapshot) {
+    } else if (
+      responseJson.output.hasOwnProperty("action") &&
+      responseJson.output.action[0].name == "buscarSalon"
+    ) {
+      console.log(
+        "-----------------------------Action type: buscarSalon------------------------------ "
+      );
+      let userFullName = []
+      let resultado
+      let resultados = []
+      let horario
+      let _asignatura = responseJson.output.action[0].parameters.asignatura
+      let carnet = Number(responseJson.output.action[0].parameters.carnet);
+      let isProfessor = responseJson.output.action[0].parameters.asignatura;
+      console.log("ESTE ES EL CARNET:", carnet);
+      bot.reply(
+        message,
+        message.watsonData.output.text.join(
+          "\n"
+        )
+      );
+      if (isProfessor) {
+        refProfesores
+          .orderByChild("carnet")
+          .equalTo(carnet)
+          .on(
+            "value",
+            function (snapshot) {
               if (snapshot.val() !== null) {
-                //user exists, do something
-                let carrera = snapshot.child(carnet).val().carrera;
-                userFullName = snapshot
-                  .child(carnet)
-                  .val()
-                  .nombre.split(" ") || null;
+                userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
                 let username = userFullName[0];
                 message.watsonData.context.username = username || null;
-                message.watsonData.context.carrera = carrera;
-                refCarreras
-                  .orderByChild("nombre")
-                  .equalTo(carrera)
-                  .on("value", function (snapshot2) {
-                    if (snapshot.val() !== null) {
-                      let certfJSON = snapshot2
-                        .child(carrera)
-                        .val().certificados;
-                      let keys = Object.keys(certfJSON);
-                      for (var i = 0; i < keys.length; i++) {
-                        let k = keys[i];
-                        let nombreCert = certfJSON[k].nombre;
-                        certificadosArray.push(nombreCert);
-                      }
-
-                      message.watsonData.context.certificadosDeCarrera = certificadosArray;
-                      message.watsonData.output.action = null;
-                      certificadosArray = [];
-                      console.log("Nuevo mensaje enrriquecido, propiedad watsonData: ", message.watsonData);
-                      programmaticResponse(message.watsonData).then(
-                        respuesta => {
-                          console.log(
-                            "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
-                          );
-                          console.log(
-                            "Esta es la respuesta de watson despues de haberla enrriquecido: ",
-                            respuesta
-                          );
-                          message.watsonData = respuesta;
-                          bot.reply(
-                            message,
-                            message.watsonData.output.text.join(
-                              "\n"
-                            )
-                          );
-                        }
-                      );
-                      next();
-                    } else {
-                      message.watsonData.context.callbackError =
-                        "No se contro carrera del estudiante en referencia de carreras.";
-                      programmaticResponse(message.watsonData).then(respuesta => {
-                        message.watsonData = respuesta
-                        next();
-                      });
-                    }
-                  }, function (error2) {
-                    // The callback failed.
-                    console.error("ERROR Q2 : ", error2);
-                    message.watsonData.context.callbackError = error2;
-                    programmaticResponse(message.watsonData).then(respuesta => {
-                      message.watsonData = respuesta
-                      next();
-                    });
+                let seccionesJSON = snapshot.child(carnet).val().secciones;
+                let keys = Object.keys(seccionesJSON);
+                for (var i = 0; i < keys.length; i++) {
+                  let k = keys[i];
+                  if (seccionesJSON[k].asignatura == _asignatura) {
+                    resultados.push({ aula: seccionesJSON[k].aula, horario: seccionesJSON[k].horario })
                   }
-                  );
-              } else {
-                message.watsonData.context.callbackError =
-                  "Vaya! Al parecer no hay ningún estudiante con ese carnet, por favor intentelo de nuevo más tarde.";
-                programmaticResponse(message.watsonData).then(respuesta => {
-                  message.watsonData = respuesta/*
-                    if (respuesta.output.text != "")
-                      bot.reply(
-                        message,
-                        message.watsonData.output.text.join("\n")
-                      );*/
-                  next();
-                });
-              }
-            }, function (error1) {
-              // The callback failed.
-              console.error("ERROR Q1 : ", error1);
-              message.watsonData.context.callbackError = error1;
-              programmaticResponse(message.watsonData).then(respuesta => {
-                message.watsonData = respuesta
-                next();
-              });
-            }
-            );
-        } else if (
-          responseJson.output.hasOwnProperty("action") &&
-          responseJson.output.action[0].name == "buscarSalon"
-        ) {
-          console.log(
-            "-----------------------------Action type: buscarSalon------------------------------ "
-          );
-          let userFullName = []
-          let resultado
-          let resultados = []
-          let horario
-          let _asignatura = responseJson.output.action[0].parameters.asignatura
-          let carnet = Number(responseJson.output.action[0].parameters.carnet);
-          let isProfessor = responseJson.output.action[0].parameters.asignatura;
-          console.log("ESTE ES EL CARNET:", carnet);
-          bot.reply(
-            message,
-            message.watsonData.output.text.join(
-              "\n"
-            )
-          );
-          if (isProfessor) {
-            refProfesores
-              .orderByChild("carnet")
-              .equalTo(carnet)
-              .on(
-                "value",
-                function (snapshot) {
-                  if (snapshot.val() !== null) {
-                    userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
-                    let username = userFullName[0];
-                    message.watsonData.context.username = username || null;
-                    let seccionesJSON = snapshot.child(carnet).val().secciones;
-                    let keys = Object.keys(seccionesJSON);
-                    for (var i = 0; i < keys.length; i++) {
-                      let k = keys[i];
-                      if (seccionesJSON[k].asignatura == _asignatura) {
-                        resultados.push({ aula: seccionesJSON[k].aula, horario: seccionesJSON[k].horario })
-                      }
-                    }
-                    if (resultados.length > 1) {
-                      message.watsonData.context.resultados = resultados
-                    }
-                    else {
-                      message.watsonData.context.resultado = resultados[0]
-                    }
-                    programmaticResponse(message.watsonData).then(
-                      respuesta => {
-                        console.log(
-                          "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
-                        );
-                        console.log(
-                          "Esta es la respuesta de watson despues de haberla enrriquecido: ",
-                          respuesta
-                        );
-                        message.watsonData = respuesta;
-                        bot.reply(
-                          message,
-                          message.watsonData.output.text.join(
-                            "\n"
-                          )
-                        );
-                      }
-                    );
-                  }
-                  else {
-                    message.watsonData.context.noProfessorFound = true;
-                    programmaticResponse(message.watsonData).then(
-                      respuesta => {
-                        message.watsonData = respuesta;
-                        bot.reply(
-                          message,
-                          message.watsonData.output.text.join(
-                            "\n"
-                          )
-                        );
-                      }
-                    );
-
-                  }
-                },
-                function (error1) {
-                  // The callback failed.
-                  console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ", error1);
                 }
-              );
-          }
-          else {
-            refEstudiantes
-              .orderByChild("carnet")
-              .equalTo(carnet)
-              .on(
-                "value",
-                function (snapshot) {
-                  if (snapshot.val() !== null) {
-                    userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
-                    let username = userFullName[0];
-                    message.watsonData.context.username = username || null;
-                    let seccionesJSON = snapshot.child(carnet).val().secciones;
-                    let keys = Object.keys(seccionesJSON);
-                    for (var i = 0; i < keys.length; i++) {
-                      let k = keys[i];
-                      if (seccionesJSON[k].asignatura == _asignatura) {
-                        resultados.push(seccionesJSON[k].aula + ' - ' + seccionesJSON[k].horario)
-                      }
-                    }
-                    if (resultados.length > 1) {
-                      message.watsonData.context.resultados = resultados
-                    }
-                    else {
-                      message.watsonData.context.resultado = resultados[0]
-                    }
-                    programmaticResponse(message.watsonData).then(
-                      respuesta => {
-                        console.log(
-                          "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
-                        );
-                        console.log(
-                          "Esta es la respuesta de watson despues de haberla enrriquecido: ",
-                          respuesta
-                        );
-                        message.watsonData = respuesta;
-                        bot.reply(
-                          message,
-                          message.watsonData.output.text.join(
-                            "\n"
-                          )
-                        );
-                      }
-                    );
-                  }
-                },
-                function (error2) {
-                  // The callback failed.
-                  console.error("ERROR Q1 NO SE ENCONTRO ESTUDIANTE : ", error2);
+                if (resultados.length > 1) {
+                  message.watsonData.context.resultados = resultados
                 }
-              );
-          }
-        } else if (
-          responseJson.output.hasOwnProperty("action") &&
-          responseJson.output.action[0].name == "enviarCorreo"
-        ) {
-          console.log("-----------------------------Action type: enviarCorreo------------------------------ ");
-          bot.reply(message, message.watsonData.output.text.join("\n"));
-          let _asignatura = responseJson.output.action[0].parameters.asignatura;
-          let carnet = Number(responseJson.output.action[0].parameters.carnet);
-          let subject = responseJson.output.action[0].parameters.asunto;
-          let mensaje = responseJson.output.action[0].parameters.mensaje;
-          let mailDay = responseJson.output.action[0].parameters.mailDay || moment(Date.now()).add(30, 's').toDate(); // TODO: EXTRAER FECHA (Dejar que dani lo haga)
-          mailDay = moment(mailDay).format("ddd, DD MMM YYYY H:mm:ss");
-          mailDay = mailDay.concat(" GMT");
-          console.log("ESTE ES MAIL DAY", mailDay);
-          console.log("ESTE ES SUBJETC", subject);
-          console.log("ESTE ES MENSAJE", mensaje);
-          console.log("ESTA ES ASIGNATURA", _asignatura);
-          console.log("ESTE ES EL CARNET:", carnet);
-          // TODO: MANEJAR ERRORES DE FECHA QUE SE PASA DEL MÁXIMO DE DIAS
-          mailUsers(carnet, _asignatura)
-            .then(function (retornoPromesa) {
-              // Crear la lista de correos
-              let listaEstudiantes = retornoPromesa.listaEstudiantes
-              let profesorFullName = retornoPromesa.profesorFullName
-              console.log("ëste es el professorFM", profesorFullName)
-              if (profesorFullName) // Significa que si existe el profesor
-              {
-                console.log("ESTA ES LA LISTA DE ESTUDIANTES", listaEstudiantes);
-                var mailing = mailCreator(listaEstudiantes, mensaje, _asignatura);
-                // para cada usuario de la lista configura un email a enviar
-                for (var i = 0; i < mailing.length; i++) {
-                  console.log("RECORRIENDO LISTA", i)
-                  // envía el email a cada usuario con su template personalizado de ejs
-                  mailSender(mailing[i].user, subject, mailing[i].html, mailDay, mensaje, profesorFullName)
-                    .then(function (res) {
-                      console.log("MENSAJE ENVIADO", res);
-                    })
-                    .catch(function (err) {
-                      console.log("ERROR AL ENVIAR MENSAJE: " + err)
-                      message.watsonData.context.errorEnviando = true;
-                      programmaticResponse(message.watsonData).then(
-                        respuesta => {
-                          message.watsonData = respuesta;
-                          bot.reply(message, message.watsonData.output.text.join("\n")
-                          );
-                        }
-                      );
-                    })
+                else {
+                  message.watsonData.context.resultado = resultados[0]
                 }
-                message.watsonData.context.confirmation = true
                 programmaticResponse(message.watsonData).then(
                   respuesta => {
+                    console.log(
+                      "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
+                    );
+                    console.log(
+                      "Esta es la respuesta de watson despues de haberla enrriquecido: ",
+                      respuesta
+                    );
                     message.watsonData = respuesta;
-                    bot.reply(message, message.watsonData.output.text.join("\n")
+                    bot.reply(
+                      message,
+                      message.watsonData.output.text.join(
+                        "\n"
+                      )
                     );
                   }
                 );
-              } else {
-                next()
               }
-            })
-        } else if (
-          responseJson.output.hasOwnProperty("action") &&
-          responseJson.output.action[0].name == "recordatorio"
-        ) {
-          console.log("-----------------------------Action type: recordatorios------------------------------ ");
-          let fecha = responseJson.output.action[0].parameters.fecha
-          fecha = moment(fecha).format("ddd, DD MMM YYYY")
-          let evento = responseJson.output.action[0].parameters.evento
-          let hora = responseJson.output.action[0].parameters.hora
-          let carnet = Number(responseJson.output.action[0].parameters.carnet)
-          let persona = responseJson.output.action[0].parameters.persona
-          console.log("ESTA ES EL CARNET", carnet)
-          console.log("ESTA ES LA FECHA", fecha)
-          console.log("ESTA ES LA HORA", hora)
-          console.log("ESTE ES EL EVENTO", evento)
-          console.log("ESTA ES LA PERSONA", persona)
+              else {
+                message.watsonData.context.noProfessorFound = true;
+                programmaticResponse(message.watsonData).then(
+                  respuesta => {
+                    message.watsonData = respuesta;
+                    bot.reply(
+                      message,
+                      message.watsonData.output.text.join(
+                        "\n"
+                      )
+                    );
+                  }
+                );
 
-          let horaEnvio = fecha.concat(" ", hora, " GMT")
-          console.log("ENVIARRRR", horaEnvio)
-          let subject = "Recordatorio"
-          buscarCorreo(persona, carnet).then(email => {
-            console.log(email)
-            if (email) {
-              tiempo = moment(horaEnvio).format("ddd, DD MMM YYYY H:mm")
-              var mailing = reminderCreator(email, evento, tiempo);
-              mailSender(mailing[0].user, subject, mailing[0].html, horaEnvio, evento, "recordatorio")
+              }
+            },
+            function (error1) {
+              // The callback failed.
+              console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ", error1);
+            }
+          );
+      }
+      else {
+        refEstudiantes
+          .orderByChild("carnet")
+          .equalTo(carnet)
+          .on(
+            "value",
+            function (snapshot) {
+              if (snapshot.val() !== null) {
+                userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
+                let username = userFullName[0];
+                message.watsonData.context.username = username || null;
+                let seccionesJSON = snapshot.child(carnet).val().secciones;
+                let keys = Object.keys(seccionesJSON);
+                for (var i = 0; i < keys.length; i++) {
+                  let k = keys[i];
+                  if (seccionesJSON[k].asignatura == _asignatura) {
+                    resultados.push(seccionesJSON[k].aula + ' - ' + seccionesJSON[k].horario)
+                  }
+                }
+                if (resultados.length > 1) {
+                  message.watsonData.context.resultados = resultados
+                }
+                else {
+                  message.watsonData.context.resultado = resultados[0]
+                }
+                programmaticResponse(message.watsonData).then(
+                  respuesta => {
+                    console.log(
+                      "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
+                    );
+                    console.log(
+                      "Esta es la respuesta de watson despues de haberla enrriquecido: ",
+                      respuesta
+                    );
+                    message.watsonData = respuesta;
+                    bot.reply(
+                      message,
+                      message.watsonData.output.text.join(
+                        "\n"
+                      )
+                    );
+                  }
+                );
+              }
+            },
+            function (error2) {
+              // The callback failed.
+              console.error("ERROR Q1 NO SE ENCONTRO ESTUDIANTE : ", error2);
+            }
+          );
+      }
+    } else if (
+      responseJson.output.hasOwnProperty("action") &&
+      responseJson.output.action[0].name == "enviarCorreo"
+    ) {
+      console.log("-----------------------------Action type: enviarCorreo------------------------------ ");
+      bot.reply(message, message.watsonData.output.text.join("\n"));
+      let _asignatura = responseJson.output.action[0].parameters.asignatura;
+      let carnet = Number(responseJson.output.action[0].parameters.carnet);
+      let subject = responseJson.output.action[0].parameters.asunto;
+      let mensaje = responseJson.output.action[0].parameters.mensaje;
+      let mailDay = responseJson.output.action[0].parameters.mailDay || moment(Date.now()).add(30, 's').toDate(); // TODO: EXTRAER FECHA (Dejar que dani lo haga)
+      mailDay = moment(mailDay).format("ddd, DD MMM YYYY H:mm:ss");
+      mailDay = mailDay.concat(" GMT");
+      console.log("ESTE ES MAIL DAY", mailDay);
+      console.log("ESTE ES SUBJETC", subject);
+      console.log("ESTE ES MENSAJE", mensaje);
+      console.log("ESTA ES ASIGNATURA", _asignatura);
+      console.log("ESTE ES EL CARNET:", carnet);
+      // TODO: MANEJAR ERRORES DE FECHA QUE SE PASA DEL MÁXIMO DE DIAS
+      mailUsers(carnet, _asignatura)
+        .then(function (retornoPromesa) {
+          // Crear la lista de correos
+          let listaEstudiantes = retornoPromesa.listaEstudiantes
+          let profesorFullName = retornoPromesa.profesorFullName
+          console.log("ëste es el professorFM", profesorFullName)
+          if (profesorFullName) // Significa que si existe el profesor
+          {
+            console.log("ESTA ES LA LISTA DE ESTUDIANTES", listaEstudiantes);
+            var mailing = mailCreator(listaEstudiantes, mensaje, _asignatura);
+            // para cada usuario de la lista configura un email a enviar
+            for (var i = 0; i < mailing.length; i++) {
+              console.log("RECORRIENDO LISTA", i)
+              // envía el email a cada usuario con su template personalizado de ejs
+              mailSender(mailing[i].user, subject, mailing[i].html, mailDay, mensaje, profesorFullName)
                 .then(function (res) {
                   console.log("MENSAJE ENVIADO", res);
-                  message.watsonData.context.success = true
-                  programmaticResponse(message.watsonData).then(
-                    respuesta => {
-                      message.watsonData = respuesta;
-                      bot.reply(message, message.watsonData.output.text.join("\n")
-                      );
-                    }
-                  );
-                  next();
                 })
                 .catch(function (err) {
                   console.log("ERROR AL ENVIAR MENSAJE: " + err)
@@ -696,56 +586,8 @@ const openWhiskSequence = function (bot, message, next) {
                     }
                   );
                 })
-
-            } else {
-              console.log("No hay correo")
-              message.watsonData.context.errorCorreo = true
-              message.watsonData.context.errorMensaje = "No se encontró un correo para el carnet indicado, intente más tarde"
-              programmaticResponse(message.watsonData).then(
-                respuesta => {
-                  message.watsonData = respuesta;
-                  bot.reply(message, message.watsonData.output.text.join("\n")
-                  );
-                }
-              );
             }
-          })
-
-
-          //next()
-        } else if (
-          responseJson.output.hasOwnProperty("action") &&
-          responseJson.output.action[0].name == "buscarElectivas"
-        ) {
-          let trimestre = responseJson.output.action[0].parameters.trimestre || "1718-3"
-          let tipoElectivas = responseJson.output.action[0].parameters.tipoElectiva
-          //responseJson.output.action[0].parameters.trimestre ? trimestre=responseJson.output.action[0].parameters.trimestre : tipoElectivas=responseJson.output.action[0].parameters.trimestreActual
-          console.log("TRIMESTRE ", trimestre, " Tipo ELECTIVCAS", tipoElectivas)
-
-          buscarElectivas(trimestre, tipoElectivas).then(resultado => {
-            console.log("Hacer Listaaaa", resultado)
-            message.watsonData.context.listaElectivas = resultado
-            console.log("WAAAATSON", watsonData)
-            programmaticResponse(message.watsonData).then(
-              respuesta => {
-                console.log(
-                  "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
-                );
-                console.log(
-                  "Esta es la respuesta de watson despues de haberla enrriquecido: ",
-                  respuesta
-                );
-                message.watsonData = respuesta;
-                bot.reply(
-                  message,
-                  message.watsonData.output.text.join(
-                    "\n"
-                  )
-                );
-              }
-            );
-          }).catch(err => {
-            message.watsonData.context.errorCallback = true;
+            message.watsonData.context.confirmation = true
             programmaticResponse(message.watsonData).then(
               respuesta => {
                 message.watsonData = respuesta;
@@ -753,151 +595,167 @@ const openWhiskSequence = function (bot, message, next) {
                 );
               }
             );
-          })
-          responseJson.output.action = null
+          } else {
+
+
+
+
+
+
+          }
+        })
+    } else if (
+      responseJson.output.hasOwnProperty("action") &&
+      responseJson.output.action[0].name == "recordatorio"
+    ) {
+      console.log("-----------------------------Action type: recordatorios------------------------------ ");
+      let fecha = responseJson.output.action[0].parameters.fecha
+      fecha = moment(fecha).format("ddd, DD MMM YYYY")
+      let evento = responseJson.output.action[0].parameters.evento
+      let hora = responseJson.output.action[0].parameters.hora
+      let carnet = Number(responseJson.output.action[0].parameters.carnet)
+      let persona = responseJson.output.action[0].parameters.persona
+      console.log("ESTA ES EL CARNET", carnet)
+      console.log("ESTA ES LA FECHA", fecha)
+      console.log("ESTA ES LA HORA", hora)
+      console.log("ESTE ES EL EVENTO", evento)
+      console.log("ESTA ES LA PERSONA", persona)
+
+      let horaEnvio = fecha.concat(" ", hora, " GMT")
+      console.log("ENVIARRRR", horaEnvio)
+      let subject = "Recordatorio"
+      buscarCorreo(persona, carnet).then(email => {
+        console.log(email)
+        if (email) {
+          tiempo = moment(horaEnvio).format("ddd, DD MMM YYYY H:mm")
+          var mailing = reminderCreator(email, evento, tiempo);
+          mailSender(mailing[0].user, subject, mailing[0].html, horaEnvio, evento, "recordatorio")
+            .then(function (res) {
+              console.log("MENSAJE ENVIADO", res);
+              message.watsonData.context.success = true
+              programmaticResponse(message.watsonData).then(
+                respuesta => {
+                  message.watsonData = respuesta;
+                  bot.reply(message, message.watsonData.output.text.join("\n")
+                  );
+                }
+              );
+              next();
+            })
+            .catch(function (err) {
+              console.log("ERROR AL ENVIAR MENSAJE: " + err)
+              message.watsonData.context.errorEnviando = true;
+              programmaticResponse(message.watsonData).then(
+                respuesta => {
+                  message.watsonData = respuesta;
+                  bot.reply(message, message.watsonData.output.text.join("\n")
+                  );
+                }
+              );
+            })
+
         } else {
-          next();
+          console.log("No hay correo")
+          message.watsonData.context.errorCorreo = true
+          message.watsonData.context.errorMensaje = "No se encontró un correo para el carnet indicado, intente más tarde"
+          programmaticResponse(message.watsonData).then(
+            respuesta => {
+              message.watsonData = respuesta;
+              bot.reply(message, message.watsonData.output.text.join("\n")
+              );
+            }
+          );
         }
-      });
-    } else {
-      next();
+      })
+
+
+      //next()
+    } else if (
+      responseJson.output.hasOwnProperty("action") &&
+      responseJson.output.action[0].name == "buscarElectivas"
+    ) {
+      let trimestre = responseJson.output.action[0].parameters.trimestre || "1718-3"
+      let tipoElectivas = responseJson.output.action[0].parameters.tipoElectiva
+      //responseJson.output.action[0].parameters.trimestre ? trimestre=responseJson.output.action[0].parameters.trimestre : tipoElectivas=responseJson.output.action[0].parameters.trimestreActual
+      console.log("TRIMESTRE ", trimestre, " Tipo ELECTIVCAS", tipoElectivas)
+
+      buscarElectivas(trimestre, tipoElectivas).then(resultado => {
+        console.log("Hacer Listaaaa", resultado)
+        message.watsonData.context.listaElectivas = resultado
+        console.log("WAAAATSON", watsonData)
+        programmaticResponse(message.watsonData).then(
+          respuesta => {
+            console.log(
+              "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
+            );
+            console.log(
+              "Esta es la respuesta de watson despues de haberla enrriquecido: ",
+              respuesta
+            );
+            message.watsonData = respuesta;
+            bot.reply(
+              message,
+              message.watsonData.output.text.join(
+                "\n"
+              )
+            );
+          }
+        );
+      }).catch(err => {
+        message.watsonData.context.errorCallback = true;
+        programmaticResponse(message.watsonData).then(
+          respuesta => {
+            message.watsonData = respuesta;
+            bot.reply(message, message.watsonData.output.text.join("\n")
+            );
+          }
+        );
+      })
+      responseJson.output.action = null
     }
+
   }
-};
-
-/**
- * Fetch con respuesta del programmatic call
- * @param {json} payload 
- */
-const programmaticResponse = function (payload) {
-  const requestJson = JSON.stringify(payload);
-  return fetch(watsonApiUrl,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: requestJson
-    }
-  ).then((response) => {
-    if (!response.ok) {
-      throw response;
-    }
-    return (response.json());
-  })
-    .then((responseJson) => {
-
-      _context = responseJson.context;
-
-      return (responseJson)
-
-    }).catch(function (error) {
-      throw error;
-    });
-
 }
 
 
 
-/**
- * Fetch al end-point de la secuencia
- * @param {string} incomingText 
- */
-const fetchSequence = function (incomingText) {
+var middleware = require('botkit-middleware-watson')({
+  username: process.env.CONVERSATION_USERNAME,
+  password: process.env.CONVERSATION_PASSWORD,
+  workspace_id: process.env.WORKSPACE_ID,
+  url: process.env.CONVERSATION_URL || 'https://gateway.watsonplatform.net/conversation/api',
+  version_date: '2017-05-26'
+});
 
-  _context.timezone = "America/Caracas"
-  const requestJson = JSON.stringify({
-    input: {
-      text: incomingText
-    },
-    context: _context,
-  });
-
-  return fetch(watsonApiUrl,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: requestJson
-    }
-  ).then((response) => {
-    if (!response.ok) {
-      throw response;
-    }
-    return (response.json());
-  })
-    .then((responseJson) => {
-
-      _context = responseJson.context;
-
-      return (responseJson);
-
-    }).catch(function (error) {
-      throw error;
-    });
-
-}
-
-// ---------------- Main App ----------------
-module.exports.main = function(app, webController) {
+module.exports.main = function (app) {
   if (process.env.USE_SLACK) {
     var Slack = require('./bot-slack');
-    Slack.controller.middleware.receive.use(openWhiskSequence);
+    Slack.controller.middleware.receive.use(middleware.receive);
     Slack.bot.startRTM();
     console.log('Slack bot is live');
   }
   if (process.env.USE_FACEBOOK) {
     var Facebook = require('./bot-facebook');
-    Facebook.controller.middleware.receive.use(openWhiskSequence);
+    Facebook.controller.middleware.receive.use(middleware.receive);
     Facebook.controller.createWebhookEndpoints(app, Facebook.bot);
     console.log('Facebook bot is live');
   }
   if (process.env.USE_TWILIO) {
     var Twilio = require('./bot-twilio');
-    Twilio.controller.middleware.receive.use(openWhiskSequence);
+    Twilio.controller.middleware.receive.use(middleware.receive);
     Twilio.controller.createWebhookEndpoints(app, Twilio.bot);
     console.log('Twilio bot is live');
   }
-
-  // Abre sockets para que aplicaciones que posean la arquitectura se conecten al middleware
-  webController.openSocketServer(webController.httpserver);
-
-  // Configura controlador web para que use la secuencia de OpenWhisk para el flujo de información
-
-  webController.middleware.receive.use(openWhiskSequence);
-  // Personaliza el mensaje del sistema bot web antes de enviarlo
-  webController.middleware.send.use(function(bot, message, next) {
-    message.watsonResponseData = watsonDataAux;
-    next();
-
-});
-
-// Arranca el sistema bot para procesar los webhooks y websockets cada 1.5 segundos (lo despierta para evitar lag)
-webController.startTicking();
-// Configura el sistema bot web para accionarse al evento de mensaje entrante
-webController.hears(['.*'], 'message_received', function(bot, message) {
-    if (message.watsonError) {
-      console.log(message.watsonError);
-      bot.reply(message, message.watsonError.description || message.watsonError.error);
-    } else if (message.watsonData && 'output' in message.watsonData) {
-      bot.reply(message, message.watsonData.output.text.join('\n'));
-    } else {
-      console.log('Error: Se recivió un mensaje con el formato erroneo. Verificar conexión con IBM watson');
-      bot.reply(message, "Lo sentimos, pero por razones técnicas no podemos atenderle en estos momentos.");
-    }
-  });
-
-  // Personaliza acciones antes y después de las respuetsas de la llamada.
-  openWhiskSequence.before = function (message, conversationPayload, callback) {
+  // Customize your Watson Middleware object's before and after callbacks.
+  middleware.before = function (message, conversationPayload, callback) {
     callback(null, conversationPayload);
   }
 
-  openWhiskSequence.after = function (message, conversationResponse, callback) {
+  middleware.after = function (message, conversationResponse, callback) {
+    //processWatsonResponse(message, conversationResponse, callback);
     callback(null, conversationResponse);
   }
 };
 
-exports.openWhiskSequence = openWhiskSequence;
+
+module.exports.processWatsonResponse=processWatsonResponse 
