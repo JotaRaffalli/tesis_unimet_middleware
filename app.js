@@ -316,7 +316,7 @@ const mailSender = function (userEmail, subject, _html, mailDay, mensaje, profes
 var processWatsonResponse = function (bot, message) {
   console.log("********** PRIMERA FASE **********");
   console.log("Mensaje Recibido de canal con éxito: ", message);
-  responseJson=message.watsonData
+  responseJson = message.watsonData
   console.log("RESPUESTA", responseJson)
   if (responseJson) {
     if (
@@ -365,50 +365,39 @@ var processWatsonResponse = function (bot, message) {
                   message.watsonData.output.action = null;
                   certificadosArray = [];
                   console.log("Nuevo mensaje enrriquecido, propiedad watsonData: ", message.watsonData);
-                  middleware.sendToWatsonAsync(bot, message, message.context).then(function(){
-                   
-                    bot.reply(message, message.watsonData.output.text.join('\n'))  
-                    console.log("aaaaaaaaaaaaaa")
-                  })                
+                  middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+                    bot.reply(message, message.watsonData.output.text.join('\n'))
+                  })
                 } else {
                   message.watsonData.context.callbackError =
                     "No se contro carrera del estudiante en referencia de carreras.";
-                  programmaticResponse(message.watsonData).then(respuesta => {
-                    message.watsonData = respuesta
-                    next();
-                  });
+                  middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+                    bot.reply(message, message.watsonData.output.text.join('\n'))
+                  })
                 }
               }, function (error2) {
                 // The callback failed.
                 console.error("ERROR Q2 : ", error2);
                 message.watsonData.context.callbackError = error2;
-                programmaticResponse(message.watsonData).then(respuesta => {
-                  message.watsonData = respuesta
-                  next();
-                });
+                middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+                  bot.reply(message, message.watsonData.output.text.join('\n'))
+                })
               }
               );
           } else {
             message.watsonData.context.callbackError =
               "Vaya! Al parecer no hay ningún estudiante con ese carnet, por favor intentelo de nuevo más tarde.";
-            programmaticResponse(message.watsonData).then(respuesta => {
-              message.watsonData = respuesta/*
-                if (respuesta.output.text != "")
-                  bot.reply(
-                    message,
-                    message.watsonData.output.text.join("\n")
-                  );*/
-              next();
-            });
+            middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+              bot.reply(message, message.watsonData.output.text.join('\n'))
+            })
           }
         }, function (error1) {
           // The callback failed.
           console.error("ERROR Q1 : ", error1);
           message.watsonData.context.callbackError = error1;
-          programmaticResponse(message.watsonData).then(respuesta => {
-            message.watsonData = respuesta
-            next();
-          });
+          middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+            bot.reply(message, message.watsonData.output.text.join('\n'))
+          })
         }
         );
     } else if (
@@ -769,4 +758,4 @@ module.exports.main = function (app) {
 };
 
 
-module.exports.processWatsonResponse=processWatsonResponse 
+module.exports.processWatsonResponse = processWatsonResponse 
