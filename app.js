@@ -429,14 +429,15 @@ var processWatsonResponse = function (bot, message) {
       let horario
       let _asignatura = responseJson.output.action[0].parameters.asignatura
       let carnet = Number(responseJson.output.action[0].parameters.carnet);
-      let isProfessor = responseJson.output.action[0].parameters.asignatura;
-      console.log("ESTE ES EL CARNET:", carnet);
-      bot.reply(
+      let isProfessor = responseJson.output.action[0].parameters.isProfessor;
+      console.log("ESTE ES EL CARNET: ", carnet);
+      console.log("ASIGNATURA A BUSCAR: ", _asignatura);
+      /* bot.reply(
         message,
         message.watsonData.output.text.join(
           "\n"
         )
-      );
+      ); */
       if (isProfessor) {
         refProfesores
           .orderByChild("carnet")
@@ -453,49 +454,7 @@ var processWatsonResponse = function (bot, message) {
                 for (var i = 0; i < keys.length; i++) {
                   let k = keys[i];
                   if (seccionesJSON[k].asignatura == _asignatura) {
-                    resultados.push({ aula: seccionesJSON[k].aula, horario: seccionesJSON[k].horario })
-                  }
-                }
-                if (resultados.length > 1) {
-                  message.watsonData.context.resultados = resultados
-                }
-                else {
-                  message.watsonData.context.resultado = resultados[0]
-                }
-                middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
-                  bot.reply(message, message.watsonData.output.text.join('\n'))
-                })
-              }
-              else {
-                message.watsonData.context.noProfessorFound = true;
-                middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
-                  bot.reply(message, message.watsonData.output.text.join('\n'))
-                })
-
-              }
-            },
-            function (error1) {
-              // The callback failed.
-              console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ", error1);
-            }
-          );
-      }
-      else {
-        refEstudiantes
-          .orderByChild("carnet")
-          .equalTo(carnet)
-          .on(
-            "value",
-            function (snapshot) {
-              if (snapshot.val() !== null) {
-                userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
-                let username = userFullName[0];
-                message.watsonData.context.username = username || null;
-                let seccionesJSON = snapshot.child(carnet).val().secciones;
-                let keys = Object.keys(seccionesJSON);
-                for (var i = 0; i < keys.length; i++) {
-                  let k = keys[i];
-                  if (seccionesJSON[k].asignatura == _asignatura) {
+                    console.log("Se encontro asignatura")
                     resultados.push(seccionesJSON[k].aula + ' - ' + seccionesJSON[k].horario)
                   }
                 }
@@ -505,11 +464,58 @@ var processWatsonResponse = function (bot, message) {
                 else {
                   message.watsonData.context.resultado = resultados[0]
                 }
+
+                if (resultados.length == 0) message.watsonData.context.noSectionFound = true;
+                console.log("EL AULA Y SECCIÓN DE LA MATERIA ESCOGIDA ES:  ", message.watsonData.context.resultado);
+                middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+                  bot.reply(message, message.watsonData.output.text.join('\n'))
+                })
+              }
+              else {
+                message.watsonData.context.noProfessorFound = true;
                 middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
                   bot.reply(message, message.watsonData.output.text.join('\n'))
                 })
               }
             },
+            function (error1) {
+              // The callback failed.
+              console.error("ERROR Q1 NO SE ENCONTRO PROFESOR : ", error1);
+            }
+          );
+      }
+      else {
+        refSecciones.
+          orderByChild("asignatura").
+          on("value", function (snapshot) {
+            if (snapshot.val() !== null) {
+              snapshot.forEach(function (data) {
+                if (data.val().asignatura == _asignatura) {
+                  resultados.push(data.val().aula + ' - ' + data.val().horario)
+                  console.log("Se encontro asignatura")
+                }
+                console.log("Seccion:  " + data.key + " aula:  " + data.val().aula);
+              });
+
+              if (resultados.length > 1) {
+                message.watsonData.context.resultados = resultados
+              }
+              else {
+                message.watsonData.context.resultado = resultados[0]
+              }
+              if (resultados.length == 0) message.watsonData.context.noSectionFound = true;
+              console.log("EL AULA Y SECCIÓN DE LA MATERIA ESCOGIDA ES:  ", resultados[0]);
+              middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+                bot.reply(message, message.watsonData.output.text.join('\n'))
+              })
+            }
+            else {
+              message.watsonData.context.noSectionFound = true;
+              middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+                bot.reply(message, message.watsonData.output.text.join('\n'))
+              })
+            }
+          },
             function (error2) {
               // The callback failed.
               console.error("ERROR Q1 NO SE ENCONTRO ESTUDIANTE : ", error2);
@@ -566,7 +572,7 @@ var processWatsonResponse = function (bot, message) {
               bot.reply(message, message.watsonData.output.text.join('\n'))
             })
           } else {
-            
+
 
 
 
