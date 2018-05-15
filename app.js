@@ -223,14 +223,10 @@ const mailUsers = function (carnet, _asignatura) {
       // No se encontró profesor con ese carnet
       message.watsonData.context.isProfessor = false;
       // Avisa a watson que hubo un error
-      programmaticResponse(message.watsonData).then(
-        respuesta => {
-          message.watsonData = respuesta;
-          bot.reply(message, message.watsonData.output.text.join("\n")
-          );
-          deffered.reject(message.watsonData.context.isProfessor);
-        }
-      );
+      middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+        bot.reply(message, message.watsonData.output.text.join('\n'))
+        deffered.reject(message.watsonData.context.isProfessor);
+      })
     }
   },
     function (error1) {
