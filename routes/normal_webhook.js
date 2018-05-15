@@ -15,7 +15,6 @@ module.exports = function(webserver, controller) {
 
     });
 
-    // Receive post data from fb, this will be the messages you receive 
     webserver.post('/facebook/receive', function(req, res) {
 
         // respond to FB that the webhook has been received.

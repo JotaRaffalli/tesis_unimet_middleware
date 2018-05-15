@@ -150,8 +150,6 @@ const buscarElectivas = function (trimestre, tipoElectivas) {
 }
 
 
-
-
 /**
  * Customiza un poco la lista de correos a enviar
  * @param {array} listaEstudiantes 
@@ -177,7 +175,6 @@ const reminderCreator = function (email, evento, tiempo) {
     }
   });
 
-
   return mailingList;
 }
 
@@ -189,65 +186,66 @@ const reminderCreator = function (email, evento, tiempo) {
 
 const buscarCorreo = function (persona, carnet) {
 
-  return new Promise(resolve => {
-    var email = []
-    if (persona == "Profesor") {
-      console.log("Entro a Profesor", carnet)
-      refProfesores.orderByChild("carnet")
-        .equalTo(carnet)
-        .on(
-          "value",
-          function (snapshot) {
-            console.log(snapshot.val())
-            if (snapshot.val() != null) {
-              let key = Object.keys(snapshot.val())
-              console.log(key)
-              console.log("correo", snapshot.child(key).val().correo)
+  var deffered = Q.defer();
 
-              email.push(
-                {
-                  correo: snapshot.child(key).val().correo,
-                  nombre: snapshot.child(key).val().nombre
-                })
-              resolve(email)
-            } else {
-              console.log("nulo")
-              resolve(null)
-            }
-          }, function (err) {
-            console.log(err)
-            resolve(null)
-          }); //TODO: ERROR HANDLING;
-    } else {
-      console.log("Entro a Estudiantes")
-      refEstudiantes.orderByChild("carnet")
-        .equalTo(carnet)
-        .on(
-          "value",
-          function (snapshot) {
-            console.log(snapshot.val())
-            if (snapshot.val() != null) {
-              let key = Object.keys(snapshot.val())
-              console.log(key)
-              console.log("correo", snapshot.child(key).val().correo)
+  var email = []
+  if (persona == "Profesor") {
+    console.log("Entro a Profesor", carnet)
+    refProfesores.orderByChild("carnet")
+      .equalTo(carnet)
+      .on(
+        "value",
+        function (snapshot) {
+          console.log(snapshot.val())
+          if (snapshot.val() != null) {
+            let key = Object.keys(snapshot.val())
+            console.log(key)
+            console.log("correo", snapshot.child(key).val().correo)
 
-              email.push(
-                {
-                  correo: snapshot.child(key).val().correo,
-                  nombre: snapshot.child(key).val().nombre
-                })
-              resolve(email)
-            } else {
-              console.log("nulo")
-              resolve(null)
-            }
-          }, function (err) {
-            console.log(err)
-            resolve(null)
-          });//TODO: ERROR HANDLING;
+            email.push(
+              {
+                correo: snapshot.child(key).val().correo,
+                nombre: snapshot.child(key).val().nombre
+              })
+            deffered.resolve(email)
+          } else {
+            console.log("No se encontró su carnet")
+            deffered.reject(null)
+          }
+        }, function (err) {
+          console.log(err)
+          deffered.reject(err)
+        });
+  } else {
+    console.log("Entro a Estudiantes")
+    refEstudiantes.orderByChild("carnet")
+      .equalTo(carnet)
+      .on(
+        "value",
+        function (snapshot) {
+          console.log(snapshot.val())
+          if (snapshot.val() != null) {
+            let key = Object.keys(snapshot.val())
+            console.log(key)
+            console.log("correo", snapshot.child(key).val().correo)
 
-    }
-  })
+            email.push(
+              {
+                correo: snapshot.child(key).val().correo,
+                nombre: snapshot.child(key).val().nombre
+              })
+            deffered.resolve(email)
+          } else {
+            console.log("nulo")
+            deffered.reject("No se encontró su carnet")
+          }
+        }, function (err) {
+          console.log(err)
+          deffered.reject(err)
+        });
+
+  }
+  return deffered.promise
 }
 
 
@@ -568,7 +566,7 @@ var processWatsonResponse = function (bot, message) {
               bot.reply(message, message.watsonData.output.text.join('\n'))
             })
           } else {
-
+            
 
 
 
@@ -608,7 +606,6 @@ var processWatsonResponse = function (bot, message) {
               middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
                 bot.reply(message, message.watsonData.output.text.join('\n'))
               })
-              next();
             })
             .catch(function (err) {
               console.log("ERROR AL ENVIAR MENSAJE: " + err)
@@ -626,10 +623,14 @@ var processWatsonResponse = function (bot, message) {
             bot.reply(message, message.watsonData.output.text.join('\n'))
           })
         }
+      }).catch(err => {
+        message.watsonData.context.callbackError = true
+        message.watsonData.context.errorMensaje = err
+        middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+          bot.reply(message, message.watsonData.output.text.join('\n'))
+        })
       })
 
-
-      //next()
     } else if (
       responseJson.output.hasOwnProperty("action") &&
       responseJson.output.action[0].name == "buscarElectivas"
@@ -654,7 +655,6 @@ var processWatsonResponse = function (bot, message) {
       })
       responseJson.output.action = null
     }
-
   }
 }
 
@@ -668,7 +668,7 @@ var middleware = require('botkit-middleware-watson')({
   version_date: '2017-05-26'
 });
 
-module.exports.main = function (app) {
+module.exports.main = function (app, webController) {
   if (process.env.USE_SLACK) {
     var Slack = require('./bot-slack');
     Slack.controller.middleware.receive.use(middleware.receive);
@@ -687,6 +687,38 @@ module.exports.main = function (app) {
     Twilio.controller.createWebhookEndpoints(app, Twilio.bot);
     console.log('Twilio bot is live');
   }
+
+  // Abre sockets para que aplicaciones que posean la arquitectura se conecten al middleware
+  webController.openSocketServer(webController.httpserver);
+
+
+
+  // Configura controlador web para que use la secuencia de OpenWhisk para el flujo de información
+
+  webController.middleware.receive.use(middleware.receive);
+  // Personaliza el mensaje del sistema bot web antes de enviarlo
+  webController.middleware.send.use(function (bot, message, next) {
+    message.watsonResponseData = watsonDataAux;
+    next();
+  });
+
+  // Arranca el sistema bot para procesar los webhooks y websockets cada 1.5 segundos (lo despierta para evitar lag)
+  webController.startTicking();
+  // Configura el sistema bot web para accionarse al evento de mensaje entrante
+  webController.hears(['.*'], 'message_received', function (bot, message) {
+    if (message.watsonError) {
+      console.log(message.watsonError);
+      bot.reply(message, message.watsonError.description || message.watsonError.error);
+    } else if (message.watsonData && 'output' in message.watsonData) {
+      bot.reply(message, message.watsonData.output.text.join('\n'));
+    } else {
+      console.log('Error: Se recivió un mensaje con el formato erroneo. Verificar conexión con IBM watson');
+      bot.reply(message, "Lo sentimos, pero por razones técnicas no podemos atenderle en estos momentos.");
+    }
+  });
+
+
+
   // Customize your Watson Middleware object's before and after callbacks.
   middleware.before = function (message, conversationPayload, callback) {
     callback(null, conversationPayload);
