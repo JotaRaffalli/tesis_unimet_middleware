@@ -446,38 +446,15 @@ var processWatsonResponse = function (bot, message) {
                 else {
                   message.watsonData.context.resultado = resultados[0]
                 }
-                programmaticResponse(message.watsonData).then(
-                  respuesta => {
-                    console.log(
-                      "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
-                    );
-                    console.log(
-                      "Esta es la respuesta de watson despues de haberla enrriquecido: ",
-                      respuesta
-                    );
-                    message.watsonData = respuesta;
-                    bot.reply(
-                      message,
-                      message.watsonData.output.text.join(
-                        "\n"
-                      )
-                    );
-                  }
-                );
+                middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+                  bot.reply(message, message.watsonData.output.text.join('\n'))
+                })
               }
               else {
                 message.watsonData.context.noProfessorFound = true;
-                programmaticResponse(message.watsonData).then(
-                  respuesta => {
-                    message.watsonData = respuesta;
-                    bot.reply(
-                      message,
-                      message.watsonData.output.text.join(
-                        "\n"
-                      )
-                    );
-                  }
-                );
+                middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+                  bot.reply(message, message.watsonData.output.text.join('\n'))
+                })
 
               }
             },
@@ -512,24 +489,9 @@ var processWatsonResponse = function (bot, message) {
                 else {
                   message.watsonData.context.resultado = resultados[0]
                 }
-                programmaticResponse(message.watsonData).then(
-                  respuesta => {
-                    console.log(
-                      "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
-                    );
-                    console.log(
-                      "Esta es la respuesta de watson despues de haberla enrriquecido: ",
-                      respuesta
-                    );
-                    message.watsonData = respuesta;
-                    bot.reply(
-                      message,
-                      message.watsonData.output.text.join(
-                        "\n"
-                      )
-                    );
-                  }
-                );
+                middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+                  bot.reply(message, message.watsonData.output.text.join('\n'))
+                })
               }
             },
             function (error2) {
@@ -578,23 +540,15 @@ var processWatsonResponse = function (bot, message) {
                 .catch(function (err) {
                   console.log("ERROR AL ENVIAR MENSAJE: " + err)
                   message.watsonData.context.errorEnviando = true;
-                  programmaticResponse(message.watsonData).then(
-                    respuesta => {
-                      message.watsonData = respuesta;
-                      bot.reply(message, message.watsonData.output.text.join("\n")
-                      );
-                    }
-                  );
+                  middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+                    bot.reply(message, message.watsonData.output.text.join('\n'))
+                  })
                 })
             }
             message.watsonData.context.confirmation = true
-            programmaticResponse(message.watsonData).then(
-              respuesta => {
-                message.watsonData = respuesta;
-                bot.reply(message, message.watsonData.output.text.join("\n")
-                );
-              }
-            );
+            middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+              bot.reply(message, message.watsonData.output.text.join('\n'))
+            })
           } else {
 
 
@@ -633,38 +587,26 @@ var processWatsonResponse = function (bot, message) {
             .then(function (res) {
               console.log("MENSAJE ENVIADO", res);
               message.watsonData.context.success = true
-              programmaticResponse(message.watsonData).then(
-                respuesta => {
-                  message.watsonData = respuesta;
-                  bot.reply(message, message.watsonData.output.text.join("\n")
-                  );
-                }
-              );
+              middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+                bot.reply(message, message.watsonData.output.text.join('\n'))
+              })
               next();
             })
             .catch(function (err) {
               console.log("ERROR AL ENVIAR MENSAJE: " + err)
               message.watsonData.context.errorEnviando = true;
-              programmaticResponse(message.watsonData).then(
-                respuesta => {
-                  message.watsonData = respuesta;
-                  bot.reply(message, message.watsonData.output.text.join("\n")
-                  );
-                }
-              );
+              middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+                bot.reply(message, message.watsonData.output.text.join('\n'))
+              })
             })
 
         } else {
           console.log("No hay correo")
           message.watsonData.context.errorCorreo = true
           message.watsonData.context.errorMensaje = "No se encontró un correo para el carnet indicado, intente más tarde"
-          programmaticResponse(message.watsonData).then(
-            respuesta => {
-              message.watsonData = respuesta;
-              bot.reply(message, message.watsonData.output.text.join("\n")
-              );
-            }
-          );
+          middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+            bot.reply(message, message.watsonData.output.text.join('\n'))
+          })
         }
       })
 
@@ -683,33 +625,14 @@ var processWatsonResponse = function (bot, message) {
         console.log("Hacer Listaaaa", resultado)
         message.watsonData.context.listaElectivas = resultado
         console.log("WAAAATSON", watsonData)
-        programmaticResponse(message.watsonData).then(
-          respuesta => {
-            console.log(
-              "------------------- Se actualiza a watson con mensaje enrriquecido -----------------"
-            );
-            console.log(
-              "Esta es la respuesta de watson despues de haberla enrriquecido: ",
-              respuesta
-            );
-            message.watsonData = respuesta;
-            bot.reply(
-              message,
-              message.watsonData.output.text.join(
-                "\n"
-              )
-            );
-          }
-        );
+        middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+          bot.reply(message, message.watsonData.output.text.join('\n'))
+        })
       }).catch(err => {
         message.watsonData.context.errorCallback = true;
-        programmaticResponse(message.watsonData).then(
-          respuesta => {
-            message.watsonData = respuesta;
-            bot.reply(message, message.watsonData.output.text.join("\n")
-            );
-          }
-        );
+        middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+          bot.reply(message, message.watsonData.output.text.join('\n'))
+        })
       })
       responseJson.output.action = null
     }
