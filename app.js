@@ -329,7 +329,8 @@ const openWhiskSequence = function (bot, message, next) {
     next();
   } else {
     if (message.text && message.type != "self_message") {
-      fetchSequence(message.text).then(function (responseJson) {
+      let user = message.user;
+      fetchSequence(message.text, user).then(function (responseJson) {
         console.log("********** SEGUNDA FASE **********");
         console.log("Se le envía a watson el mensaje...");
         console.log("Esta es la respuesta: ", responseJson);
@@ -462,13 +463,14 @@ const openWhiskSequence = function (bot, message, next) {
           let _asignatura = responseJson.output.action[0].parameters.asignatura
           let carnet = Number(responseJson.output.action[0].parameters.carnet);
           let isProfessor = responseJson.output.action[0].parameters.isProfessor;
-          console.log("ESTE ES EL CARNET:", carnet);
-          bot.reply(
+          console.log("ESTE ES EL CARNET: ", carnet);
+          console.log("ASIGNATURA A BUSCAR: ", _asignatura);
+          /* bot.reply(
             message,
             message.watsonData.output.text.join(
               "\n"
             )
-          );
+          ); */
           if (isProfessor) {
             refProfesores
               .orderByChild("carnet")
@@ -485,7 +487,8 @@ const openWhiskSequence = function (bot, message, next) {
                     for (var i = 0; i < keys.length; i++) {
                       let k = keys[i];
                       if (seccionesJSON[k].asignatura == _asignatura) {
-                        resultados.push({ aula: seccionesJSON[k].aula, horario: seccionesJSON[k].horario })
+                        console.log("Se encontro asignatura")
+                        resultados.push( seccionesJSON[k].aula+' - '+seccionesJSON[k].horario )
                       }
                     }
                     if (resultados.length > 1) {
@@ -494,6 +497,9 @@ const openWhiskSequence = function (bot, message, next) {
                     else {
                       message.watsonData.context.resultado = resultados[0]
                     }
+
+                    if(resultados.length == 0 ) message.watsonData.context.noSectionFound  = true;
+                    console.log("EL AULA Y SECCIÓN DE LA MATERIA ESCOGIDA ES:  ",message.watsonData.context.resultado);
                     programmaticResponse(message.watsonData).then(
                       respuesta => {
                         console.log(
@@ -536,30 +542,26 @@ const openWhiskSequence = function (bot, message, next) {
               );
           }
           else {
-            refEstudiantes
-              .orderByChild("carnet")
-              .equalTo(carnet)
-              .on(
-                "value",
-                function (snapshot) {
+            refSecciones.
+            orderByChild("asignatura").
+            on("value",function (snapshot) {
                   if (snapshot.val() !== null) {
-                    userFullName = snapshot.child(carnet).val().nombre.split(" ") || null;
-                    let username = userFullName[0];
-                    message.watsonData.context.username = username || null;
-                    let seccionesJSON = snapshot.child(carnet).val().secciones;
-                    let keys = Object.keys(seccionesJSON);
-                    for (var i = 0; i < keys.length; i++) {
-                      let k = keys[i];
-                      if (seccionesJSON[k].asignatura == _asignatura) {
-                        resultados.push(seccionesJSON[k].aula + ' - ' + seccionesJSON[k].horario)
+                    snapshot.forEach(function(data) {
+                      if (data.val().asignatura == _asignatura) {
+                        resultados.push(data.val().aula + ' - ' + data.val().horario)
+                        console.log("Se encontro asignatura")
                       }
-                    }
+                      console.log("Seccion:  " + data.key + " aula:  " + data.val().aula);
+                    });
+
                     if (resultados.length > 1) {
                       message.watsonData.context.resultados = resultados
                     }
                     else {
                       message.watsonData.context.resultado = resultados[0]
                     }
+                    if(resultados.length == 0 ) message.watsonData.context.noSectionFound  = true;
+                    console.log("EL AULA Y SECCIÓN DE LA MATERIA ESCOGIDA ES:  ",resultados[0]);
                     programmaticResponse(message.watsonData).then(
                       respuesta => {
                         console.log(
@@ -569,6 +571,20 @@ const openWhiskSequence = function (bot, message, next) {
                           "Esta es la respuesta de watson despues de haberla enrriquecido: ",
                           respuesta
                         );
+                        message.watsonData = respuesta;
+                        bot.reply(
+                          message,
+                          message.watsonData.output.text.join(
+                            "\n"
+                          )
+                        );
+                      }
+                    );
+                  }
+                  else {
+                    message.watsonData.context.noSectionFound = true;
+                    programmaticResponse(message.watsonData).then(
+                      respuesta => {
                         message.watsonData = respuesta;
                         bot.reply(
                           message,
@@ -804,7 +820,7 @@ const programmaticResponse = function (payload) {
  * Fetch al end-point de la secuencia
  * @param {string} incomingText 
  */
-const fetchSequence = function (incomingText) {
+const fetchSequence = function (incomingText, user) {
 
   _context.timezone = "America/Caracas"
   const requestJson = JSON.stringify({
@@ -812,6 +828,7 @@ const fetchSequence = function (incomingText) {
       text: incomingText
     },
     context: _context,
+    currentUser: user
   });
 
   return fetch(watsonApiUrl,
