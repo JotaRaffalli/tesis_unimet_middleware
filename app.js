@@ -53,30 +53,100 @@ var refElectivas = db.ref("electivas");
 
 // Funciones
 
-const buscarElectivas = function (trimestre, tipoElectivas) {
-  lista = []
-  return new Promise(resolve => {
-    refElectivas.child(trimestre).orderByKey().startAt(tipoElectivas).endAt(tipoElectivas + "\uf8ff").on("value", function (snapshot) {
-      if (snapshot.val() != null) {
-        console.log("SNAAAAAAAAP", snapshot.val())
-        resultado = snapshot.val();
-        let keys = Object.keys(resultado);
-        for (var z = 0; z < keys.length; z++) {
-          let k = keys[z];
-          lista.push(
-            resultado[k].nombre
+const buscarCertificados = function (carnet) {
+
+  var deffered = Q.defer();
+
+  let certificadosArray = [];
+  let userFullName = [];
+
+
+  refEstudiantes
+    .orderByChild("carnet")
+    .equalTo(carnet)
+    .on("value", function (snapshot) {
+      if (snapshot.val() !== null) {
+        //user exists, do something
+        let carrera = snapshot.child(carnet).val().carrera;
+        userFullName = snapshot
+          .child(carnet)
+          .val()
+          .nombre.split(" ") || null;
+        let username = userFullName[0];
+        refCarreras
+          .orderByChild("nombre")
+          .equalTo(carrera)
+          .on("value", function (snapshot2) {
+            if (snapshot.val() !== null) {
+              let certfJSON = snapshot2
+                .child(carrera)
+                .val().certificados;
+              let keys = Object.keys(certfJSON);
+              for (var i = 0; i < keys.length; i++) {
+                let k = keys[i];
+                let nombreCert = certfJSON[k].nombre;
+                certificadosArray.push(nombreCert);
+              }
+              let resultados = []
+              resultados.push({
+                certificadosArray: certificadosArray,
+                carrera: carrera,
+                userFullName: userFullName
+              })
+              deffered.resolve(resultados[0]);
+            } else {
+              let callbackError =
+                "No se contro carrera del estudiante en referencia de carreras.";
+              deffered.reject(callbackError)
+            }
+          }, function (error2) {
+            // The callback failed.
+            console.error("ERROR Q2 : ", error2);
+            deffered.reject(error2)
+          }
           );
-        }
-        resolve(lista)
       } else {
-        reject(null)
+        let callbackError =
+          "Vaya! Al parecer no hay ningún estudiante con ese carnet, por favor intentelo de nuevo más tarde.";
+        deffered.reject(callbackError)
       }
-    }, function (error) {
+    }, function (error1) {
       // The callback failed.
-      console.error("ERROR NO SE HALLARON ELECTIVAS : ", error1);
-      reject(console.log('failed: ' + error1));
-    });
-  })
+      console.error("ERROR Q1 : ", error1);
+      deffered.reject(error1)
+    }
+    );
+  return deffered.promise
+}
+
+
+
+const buscarElectivas = function (trimestre, tipoElectivas) {
+
+  lista = []
+  var deffered = Q.defer();
+
+  refElectivas.child(trimestre).orderByKey().startAt(tipoElectivas).endAt(tipoElectivas + "\uf8ff").on("value", function (snapshot) {
+    if (snapshot.val() != null) {
+      console.log("SNAAAAAAAAP", snapshot.val())
+      resultado = snapshot.val();
+      let keys = Object.keys(resultado);
+      for (var z = 0; z < keys.length; z++) {
+        let k = keys[z];
+        lista.push(
+          resultado[k].nombre
+        );
+      }
+      deffered.resolve(lista)
+    } else {
+      deffered.reject(null)
+    }
+  }, function (error) {
+    // The callback failed.
+    console.error("ERROR NO SE HALLARON ELECTIVAS : ", error1);
+    deffered.reject(console.log('failed: ' + error1));
+  });
+  return deffered.promise
 }
 
 
@@ -314,7 +384,7 @@ var processWatsonResponse = function (bot, message) {
   console.log("Mensaje Recibido de canal con éxito: ", message);
   responseJson = message.watsonData
   console.log("RESPUESTA", responseJson)
-  if (responseJson) {
+  if (responseJson && responseJson.hasOwnProperty("output")) {
     if (
       responseJson.output.hasOwnProperty("action") &&
       responseJson.output.action[0].name == "buscarCertificados"
@@ -327,75 +397,27 @@ var processWatsonResponse = function (bot, message) {
       let userFullName = [];
 
       console.log("ESTE ES EL CARNET:", carnet);
+      buscarCertificados(carnet).then(resultados => {
+        console.log("RESULTADOSSSS", resultados)
+        message.watsonData.context.certificadosDeCarrera = resultados.certificadosArray;
+        message.watsonData.output.action = null;
+        message.watsonData.context.username = resultados.userFullName || null;
+        message.watsonData.context.carrera = resultados.carrera;
 
-      refEstudiantes
-        .orderByChild("carnet")
-        .equalTo(carnet)
-        .on("value", function (snapshot) {
-          if (snapshot.val() !== null) {
-            //user exists, do something
-            let carrera = snapshot.child(carnet).val().carrera;
-            userFullName = snapshot
-              .child(carnet)
-              .val()
-              .nombre.split(" ") || null;
-            let username = userFullName[0];
-            message.watsonData.context.username = username || null;
-            message.watsonData.context.carrera = carrera;
-            refCarreras
-              .orderByChild("nombre")
-              .equalTo(carrera)
-              .on("value", function (snapshot2) {
-                if (snapshot.val() !== null) {
-                  let certfJSON = snapshot2
-                    .child(carrera)
-                    .val().certificados;
-                  let keys = Object.keys(certfJSON);
-                  for (var i = 0; i < keys.length; i++) {
-                    let k = keys[i];
-                    let nombreCert = certfJSON[k].nombre;
-                    certificadosArray.push(nombreCert);
-                  }
+        console.log("Nuevo mensaje enrriquecido, propiedad watsonData: ", message.watsonData);
+        middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+          bot.reply(message, message.watsonData.output.text.join('\n'))
+        })
+        console("ENVIADO")
+        certificadosArray = [];
+      }).catch(err => {
+        message.watsonData.context.callbackError = err;
+        middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
+          bot.reply(message, message.watsonData.output.text.join('\n'))
+        })
 
-                  message.watsonData.context.certificadosDeCarrera = certificadosArray;
-                  message.watsonData.output.action = null;
-                  certificadosArray = [];
-                  console.log("Nuevo mensaje enrriquecido, propiedad watsonData: ", message.watsonData);
-                  middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
-                    bot.reply(message, message.watsonData.output.text.join('\n'))
-                  })
-                } else {
-                  message.watsonData.context.callbackError =
-                    "No se contro carrera del estudiante en referencia de carreras.";
-                  middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
-                    bot.reply(message, message.watsonData.output.text.join('\n'))
-                  })
-                }
-              }, function (error2) {
-                // The callback failed.
-                console.error("ERROR Q2 : ", error2);
-                message.watsonData.context.callbackError = error2;
-                middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
-                  bot.reply(message, message.watsonData.output.text.join('\n'))
-                })
-              }
-              );
-          } else {
-            message.watsonData.context.callbackError =
-              "Vaya! Al parecer no hay ningún estudiante con ese carnet, por favor intentelo de nuevo más tarde.";
-            middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
-              bot.reply(message, message.watsonData.output.text.join('\n'))
-            })
-          }
-        }, function (error1) {
-          // The callback failed.
-          console.error("ERROR Q1 : ", error1);
-          message.watsonData.context.callbackError = error1;
-          middleware.sendToWatsonAsync(bot, message, message.context).then(function () {
-            bot.reply(message, message.watsonData.output.text.join('\n'))
-          })
-        }
-        );
+      })
+
     } else if (
       responseJson.output.hasOwnProperty("action") &&
       responseJson.output.action[0].name == "buscarSalon"
